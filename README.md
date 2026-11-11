@@ -58,6 +58,46 @@ Sentence questions are generated on demand from indexed examples. One or sometim
 
 Quiz answers are written to browser IndexedDB database hsk-word-quiz, object store wordProgress. The stable key is JSON.stringify([characters, normalized lower-case pinyin]); records include correct and incorrect counts, counts by mode, HSK level and the last result and timestamp. Both missing words in a sentence question receive the outcome of the combined answer. Do not clear or silently migrate progress. If the database fails, the UI reports that progress could not be saved.
 
+## Flashcards
+
+The header Flashcards button opens a dedicated review screen. Users must select one or more HSK levels before starting. Review can include new and due cards (default) or all words in those levels, with a session size of 20, 50, or all matching cards. Cards show characters first; Show answer reveals pinyin, part of speech, and meaning.
+
+Review again repeats the card later in the current session, resets its remembered streak, and schedules it in five minutes. Remembered schedules the next review after 1, 3, 7, 14, then 30 days, based on consecutive remembered ratings. Each rating is saved immediately. Ending or reloading a session preserves completed ratings; the next session is built from the saved schedule rather than resuming the exact queue.
+
+Local-only flashcard progress uses a separate IndexedDB database, `hsk-word-flashcards`, version 1, object store `cardProgress`. Keys are JSON.stringify([characters, normalized lower-case pinyin]), retaining distinct readings. Records include review counts, remembered/again counts, streak, interval, last review, and next due date. Existing quiz progress is unchanged. If loading storage fails, review stays disabled; if saving fails, the current card remains available for retry. Progress belongs to the browser profile and site origin.
+
+## Firebase cloud sync
+
+Cloud sync supports Google sign-in and shares quiz and flashcard progress across devices. The frontend remains static and works on GitHub Pages. Local-only review remains available when Firebase is disabled or unavailable. The integration code is `data/firebase-sync.mjs`; its public configuration is `data/firebase-config.json`.
+
+### Firebase setup
+
+1. Create a Firebase project on the no-cost Spark plan and register a Web app. Analytics is not needed. Copy the public Firebase Web configuration from Project settings.
+2. In Authentication, enable the Google provider and select the support email. Under Settings > Authorized domains, add the site's exact hostname, such as `YOUR_USERNAME.github.io`, plus a custom hostname if used. Add `localhost` and/or `127.0.0.1` explicitly for local testing. Domains do not include the repository path.
+3. Create a Cloud Firestore Standard edition database in a suitable region. Start with restrictive production rules.
+4. Publish `firestore.rules` and `firestore.indexes.json`. With Firebase CLI authentication configured, run `npx firebase-tools deploy --only firestore --project YOUR_PROJECT_ID`. This command does not deploy the website. For an existing shared Firebase project, merge these rules and index exemptions with the existing configuration rather than replacing unrelated rules.
+5. Fill `data/firebase-config.json`: copy `apiKey`, `authDomain`, `projectId`, and `appId` into `firebaseConfig`, and set `enabled` to `true`. These are public client identifiers. Never add service-account keys or Admin SDK credentials to the repository.
+6. Publish `index.html` and the `data` folder to GitHub Pages, or run `python serve.py` locally. Open Cloud sync and sign in with the same Google account on both devices. Use Sync now before switching devices.
+
+The Cloud sync dialog shows account and sync status. Local-only history is not uploaded automatically: the user can explicitly import it once per browser and account. Import preserves both original local databases. Signing out returns to local-only history; account caches and pending uploads remain isolated by UID. Unsent account changes retry the next time that account is signed in and connected. Use a modern browser with IndexedDB, Web Locks, and ES module support. The public configuration ships disabled until a real project is connected.
+
+### Storage design and efficiency
+
+- Firestore path: `users/{uid}/progress/{deviceId}_{kind}_{bucket}`. Rules require the authenticated UID to match the owner; there is no public progress access. Kind is `q` (quiz) or `f` (flashcards), with four deterministic buckets each. Only buckets actually used are created: at most eight documents per device for the current vocabulary.
+- Store only stable character/reading keys and compact numeric progress arrays. Vocabulary, meanings, pinyin display strings, HSK labels, sentences, and individual answer events are not duplicated in the cloud. Quiz rows contain totals, last answer, and counts for the four quiz modes; flashcard rows contain totals and the current schedule. Display metadata is reconstructed from the embedded vocabulary.
+- Ratings first commit atomically to the account-scoped IndexedDB database `hsk-word-cloud`, with `documents`, `pending`, and `meta` stores. Pending updates survive page reloads and offline sessions. A ten-second window combines repeated answers, sending only changed fields in dirty buckets in a Firestore batch. Manual sync and page hiding also attempt a flush; page-close delivery is not assumed.
+- A single live collection listener receives bucket changes. Firestore's persistent cache and multiple-tab manager share cached reads; the app does not poll or read one document per word. New devices initially read the existing bucket documents. Returning sessions may still incur Firestore reads according to its cache/reconnection billing behavior.
+- Each device maintains its own monotone counters. Retry and duplicate snapshots merge by maximum within a device, and totals sum across devices. Offline reviews on two devices do not overwrite each other's counts. Flashcard scheduling uses the latest per-card review timestamp, with device ID breaking ties; simultaneous offline reviews cannot establish a shared review order. Correct device clocks are recommended.
+- Web Locks serialize flushes across tabs. An upload acknowledgement clears the outbox only when its revision still matches, so new answers saved during an upload are retained. All progress fields are exempted from automatic Firestore indexing because the app reads documents without field queries.
+
+No Firebase project or deployed rules are created automatically. Live Google sign-in, access rules, and cross-device behavior must be verified against the configured project. Free service quotas still apply.
+
+### Development checks
+
+The application does not require npm to run. The development-only `fake-indexeddb` dependency exercises persistence and concurrency without a browser. Run `npm ci` followed by `npm test` for the data-model and IndexedDB regression tests. Browser and live-Firebase testing are separate manual checks.
+
+Official references: [Web setup](https://firebase.google.com/docs/web/setup), [Google sign-in](https://firebase.google.com/docs/auth/web/google-signin), [offline persistence](https://firebase.google.com/docs/firestore/manage-data/enable-offline), [index exemptions](https://firebase.google.com/docs/firestore/query-data/index-overview).
+
 ## Adding words or features
 
 ### When a new HSK list is provided

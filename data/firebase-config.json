@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "firebaseConfig": {
+    "apiKey": "AIzaSyDLQfBw1G0g-n9CsjoV91M8XrxclidwZOY",
+    "authDomain": "hsk-trainer-2ef1d.firebaseapp.com",
+    "projectId": "hsk-trainer-2ef1d",
+    "appId": "1:965807705053:web:422bb558c24e6cb92dc434",
+    "storageBucket": "hsk-trainer-2fe1d.firebasestorage.app",
+    "messagingSenderId": "965807705053"
+  }
+}
