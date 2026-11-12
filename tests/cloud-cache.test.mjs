@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {IDBFactory, IDBKeyRange} from 'fake-indexeddb';
-import {ProgressCache, keyFor, bucketFor, readGuest} from '../data/firebase-sync.mjs';
+import {ProgressCache, keyFor, bucketFor, readGuest} from '../assets/js/cloud-sync.mjs';
 
 globalThis.IDBKeyRange = IDBKeyRange;
 const entry = ['妈', 'mā', 'noun', 'mother', 'hsk-1'];

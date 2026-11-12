@@ -1,4 +1,4 @@
-"""Serve index.html and data files using only the Python standard library.
+"""Serve index.html, data, and viewer assets using the Python standard library.
 
 Run: python serve.py [--host 127.0.0.1] [--port 8000]
 """
@@ -13,6 +13,13 @@ ROOT = Path(__file__).resolve().parent
 
 
 class ViewerHandler(SimpleHTTPRequestHandler):
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        ".mjs": "text/javascript",
+        ".js": "text/javascript",
+        ".css": "text/css",
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
@@ -33,6 +40,8 @@ class ViewerHandler(SimpleHTTPRequestHandler):
                 allowed = target == ROOT / "index.html"
             elif path.startswith("/data/"):
                 allowed = target.is_relative_to(ROOT / "data")
+            elif path.startswith("/assets/"):
+                allowed = target.is_relative_to(ROOT / "assets")
             else:
                 allowed = False
 

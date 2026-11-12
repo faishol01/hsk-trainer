@@ -18,17 +18,33 @@ The viewer was last observed at Library version 46 in this conversation. Recheck
 
 ## Current content and user expectations
 
-The viewer embeds 1,993 entries: 300 HSK 1, 199 HSK 2, 497 HSK 3 and 997 HSK 4. Each data row is [Chinese characters, pinyin, part of speech, English meaning, HSK level]. Seven entries with identical characters and normalized pinyin were merged; distinct meanings are numbered, and the first listed level is retained. Same spelling with different readings remains separate.
+The viewer loads 1,993 entries: 300 HSK 1, 199 HSK 2, 497 HSK 3 and 997 HSK 4. Each data row is [Chinese characters, pinyin, part of speech, English meaning, HSK level]. Seven entries with identical characters and normalized pinyin were merged; distinct meanings are numbered, and the first listed level is retained. Same spelling with different readings remains separate.
 
 Keep the network, search, filters, quiz, sentence examples, audio and stored quiz progress working when adding features. Prefer direct implementation and avoid requiring the user to confirm routine choices.
 
 ## Architecture and network
 
-The application is a single HTML file with embedded CSS, application JavaScript, vocabulary data, initial coordinates, sentence ID index and vis-network 9.1.9. The vis-network library is bundled inline. There is no build system or maintained external source tree in the deliverable; locate the final application script after the bundled library before editing.
+The application uses HTML, external CSS, and native JavaScript modules. There is no build step. Publish `index.html`, `assets/`, and `data/` together. Run `python serve.py` for local HTTP access; the server exposes those runtime paths and blocks directory listings and other workspace files.
+
+- `index.html`: page markup and external stylesheet/script references.
+- `assets/css/viewer.css`, `mobile.css`, `flashcards.css`, `cloud-sync.css`: base viewer styles, responsive layout, flashcards, and cloud controls. Link order preserves the existing cascade.
+- `assets/vendor/vis-network.min.js`: unchanged vis-network 9.1.9 bundle with its license header.
+- `assets/js/bootstrap.js`: early quiz-click handling and dynamic module loading with a visible load-error fallback.
+- `assets/js/app.mjs`: network initialization, sidebar selection, and feature wiring.
+- `assets/js/relationships.mjs`, `utils.mjs`: word relationship computation and shared text helpers.
+- `assets/js/quiz.mjs`: quiz engines and quiz interface.
+- `assets/js/flashcards.mjs`, `flashcard-model.mjs`: flashcard interface and pure scheduling/selection functions.
+- `assets/js/progress.mjs`: existing quiz/flashcard IndexedDB stores with optional cloud routing.
+- `assets/js/sentences.mjs`, `audio.mjs`: sentence parsing/loading, example interface, and audio playback.
+- `assets/js/mobile.mjs`: mobile word browser and viewport handling.
+- `assets/js/cloud-sync.mjs`: optional Firebase integration. Its public configuration remains `data/firebase-config.json`.
+- `data/vocabulary.mjs`, `initial-positions.mjs`, `sentence-index.mjs`: authoritative vocabulary, parallel coordinates, and word-to-sentence-ID index. These contain the same data extracted from the original HTML.
+
+The classic vendor script loads before bootstrap using ordered `defer` scripts. Bootstrap initializes mobile navigation and imports the app; the app retains its two-frame delay before starting the network. Native module imports are relative, so repository paths on GitHub Pages work without a bundler.
 
 ### Network data and layout
 
-- The embedded data array is the authoritative vocabulary for the current app. IDs are array indices. The initialPositions array is parallel to that array and came from the user’s exported coordinates. Validate word, pinyin, level and ID alignment before replacing or reordering either array.
+- The data array exported by `data/vocabulary.mjs` is the authoritative vocabulary for the current app. IDs are array indices. The initialPositions array is parallel to that array and came from the user’s exported coordinates. Validate word, pinyin, level and ID alignment before replacing or reordering either array.
 
 - Edges are built at runtime from character containment, classified as prefix, suffix or infix. Entries with identical characters and different pinyin receive a separate different-reading link and a ◈ mark. These are spelling-based links, not verified semantic relationships.
 
@@ -44,7 +60,7 @@ The Speak button sends the selected Chinese characters to the unofficial Google 
 
 ### Sentence loading
 
-The HTML stores localSentenceData.byWord as word → sentence-ID arrays; it does not embed the sentence text. The source file has five TSV columns: ID, simplified Chinese, traditional Chinese, pinyin and English. At last inspection the index covered 1,944 written words and 23,772 unique sentence IDs, with up to 20 IDs per word; the Examples panel displays up to five.
+`data/sentence-index.mjs` stores localSentenceData.byWord as word → sentence-ID arrays; it does not embed the sentence text. The source file has five TSV columns: ID, simplified Chinese, traditional Chinese, pinyin and English. At last inspection the index covered 1,944 written words and 23,772 unique sentence IDs, with up to 20 IDs per word; the Examples panel displays up to five.
 
 Loading order is: cmn_sen_db_2.tsv beside the served HTML, then the raw GitHub source, then a user-selected TSV if both fail. The TSV parser loads referenced rows into memory and rejects a file with missing indexed IDs. The source is approximately 10 MB. Pinyin and translations in that corpus were automatically generated and may be inaccurate; character-substring matches can represent a different sense or reading. Some words have fewer than five sentences or none.
 
@@ -68,7 +84,7 @@ Local-only flashcard progress uses a separate IndexedDB database, `hsk-word-flas
 
 ## Firebase cloud sync
 
-Cloud sync supports Google sign-in and shares quiz and flashcard progress across devices. The frontend remains static and works on GitHub Pages. Local-only review remains available when Firebase is disabled or unavailable. The integration code is `data/firebase-sync.mjs`; its public configuration is `data/firebase-config.json`.
+Cloud sync supports Google sign-in and shares quiz and flashcard progress across devices. The frontend remains static and works on GitHub Pages. Local-only review remains available when Firebase is disabled or unavailable. The integration code is `assets/js/cloud-sync.mjs`; its public configuration is `data/firebase-config.json`.
 
 ### Firebase setup
 
@@ -77,14 +93,14 @@ Cloud sync supports Google sign-in and shares quiz and flashcard progress across
 3. Create a Cloud Firestore Standard edition database in a suitable region. Start with restrictive production rules.
 4. Publish `firestore.rules` and `firestore.indexes.json`. With Firebase CLI authentication configured, run `npx firebase-tools deploy --only firestore --project YOUR_PROJECT_ID`. This command does not deploy the website. For an existing shared Firebase project, merge these rules and index exemptions with the existing configuration rather than replacing unrelated rules.
 5. Fill `data/firebase-config.json`: copy `apiKey`, `authDomain`, `projectId`, and `appId` into `firebaseConfig`, and set `enabled` to `true`. These are public client identifiers. Never add service-account keys or Admin SDK credentials to the repository.
-6. Publish `index.html` and the `data` folder to GitHub Pages, or run `python serve.py` locally. Open Cloud sync and sign in with the same Google account on both devices. Use Sync now before switching devices.
+6. Publish `index.html`, `assets/`, and `data/` to GitHub Pages, or run `python serve.py` locally. Open Cloud sync and sign in with the same Google account on both devices. Use Sync now before switching devices.
 
 The Cloud sync dialog shows account and sync status. Local-only history is not uploaded automatically: the user can explicitly import it once per browser and account. Import preserves both original local databases. Signing out returns to local-only history; account caches and pending uploads remain isolated by UID. Unsent account changes retry the next time that account is signed in and connected. Use a modern browser with IndexedDB, Web Locks, and ES module support. The public configuration ships disabled until a real project is connected.
 
 ### Storage design and efficiency
 
 - Firestore path: `users/{uid}/progress/{deviceId}_{kind}_{bucket}`. Rules require the authenticated UID to match the owner; there is no public progress access. Kind is `q` (quiz) or `f` (flashcards), with four deterministic buckets each. Only buckets actually used are created: at most eight documents per device for the current vocabulary.
-- Store only stable character/reading keys and compact numeric progress arrays. Vocabulary, meanings, pinyin display strings, HSK labels, sentences, and individual answer events are not duplicated in the cloud. Quiz rows contain totals, last answer, and counts for the four quiz modes; flashcard rows contain totals and the current schedule. Display metadata is reconstructed from the embedded vocabulary.
+- Store only stable character/reading keys and compact numeric progress arrays. Vocabulary, meanings, pinyin display strings, HSK labels, sentences, and individual answer events are not duplicated in the cloud. Quiz rows contain totals, last answer, and counts for the four quiz modes; flashcard rows contain totals and the current schedule. Display metadata is reconstructed from the vocabulary module.
 - Ratings first commit atomically to the account-scoped IndexedDB database `hsk-word-cloud`, with `documents`, `pending`, and `meta` stores. Pending updates survive page reloads and offline sessions. A ten-second window combines repeated answers, sending only changed fields in dirty buckets in a Firestore batch. Manual sync and page hiding also attempt a flush; page-close delivery is not assumed.
 - A single live collection listener receives bucket changes. Firestore's persistent cache and multiple-tab manager share cached reads; the app does not poll or read one document per word. New devices initially read the existing bucket documents. Returning sessions may still incur Firestore reads according to its cache/reconnection billing behavior.
 - Each device maintains its own monotone counters. Retry and duplicate snapshots merge by maximum within a device, and totals sum across devices. Offline reviews on two devices do not overwrite each other's counts. Flashcard scheduling uses the latest per-card review timestamp, with device ID breaking ties; simultaneous offline reviews cannot establish a shared review order. Correct device clocks are recommended.
@@ -94,7 +110,7 @@ No Firebase project or deployed rules are created automatically. Live Google sig
 
 ### Development checks
 
-The application does not require npm to run. The development-only `fake-indexeddb` dependency exercises persistence and concurrency without a browser. Run `npm ci` followed by `npm test` for the data-model and IndexedDB regression tests. Browser and live-Firebase testing are separate manual checks.
+The application does not require npm to run. The development-only `fake-indexeddb` dependency exercises persistence and concurrency without a browser. Run `npm ci` followed by `npm test` for data-model, IndexedDB, module, and data-integrity regression tests. Run `python -m unittest discover -s tests -p "test_*.py"` for HTTP asset delivery, JavaScript MIME types, and path restrictions. Browser and live-Firebase testing are separate manual checks.
 
 Official references: [Web setup](https://firebase.google.com/docs/web/setup), [Google sign-in](https://firebase.google.com/docs/auth/web/google-signin), [offline persistence](https://firebase.google.com/docs/firestore/manage-data/enable-offline), [index exemptions](https://firebase.google.com/docs/firestore/query-data/index-overview).
 
@@ -106,7 +122,7 @@ Official references: [Web setup](https://firebase.google.com/docs/web/setup), [G
 
 - Deduplicate only entries with the same written characters and the same normalized reading. Preserve different readings as separate entries. Merge distinct meanings with numbering; retain the earliest existing HSK level unless the user directs otherwise.
 
-- Update the embedded vocabulary and parallel coordinates together. Match saved coordinates by stable word and reading, not by position alone. Supply sensible initial positions for new nodes; check the whole mapping and lengths before releasing.
+- Update `data/vocabulary.mjs` and `data/initial-positions.mjs` together. Match saved coordinates by stable word and reading, not by position alone. Supply sensible initial positions for new nodes; check the whole mapping and lengths before releasing.
 
 - Add the level to colors, legends, sidebar filters and quiz level selectors. Rebuild and validate the word-to-sentence-ID index from the original TSV; reuse sentence IDs instead of duplicating sentence text. Recalculate coverage and report missing examples.
 
@@ -114,11 +130,11 @@ Official references: [Web setup](https://firebase.google.com/docs/web/setup), [G
 
 ### When implementing a feature
 
-Inspect the current HTML before editing. The final application code is inside the last script element; the large earlier script is the bundled vis-network library. Preserve its license and avoid accidentally replacing it. When the original sentence file changes, rebuild the index from that exact file: reusing IDs with a different corpus can produce wrong sentences even if the IDs exist.
+Inspect the current HTML and the relevant feature modules before editing. The network coordinator is `assets/js/app.mjs`; feature code and styles live alongside it. Preserve the vendor bundle and its license. When the original sentence file changes, rebuild the index from that exact file: reusing IDs with a different corpus can produce wrong sentences even if the IDs exist.
 
 ## Verification and known limits
 
-- Run a JavaScript syntax check on the extracted final application script. Validate row counts, unique character-and-pinyin keys, coordinate alignment and sentence-ID coverage. Exercise all HSK filters and all quiz modes, including two blanks, progress persistence, resume and fallback loading.
+- Run JavaScript syntax checks on the modified modules and `npm test`. Validate row counts, unique character-and-pinyin keys, coordinate alignment and sentence-ID coverage. Exercise all HSK filters and all quiz modes, including two blanks, progress persistence, resume and fallback loading.
 
 - Test in a real browser where possible: initial loading and quiz during loading, local/remote/upload fallback, example playback, screen sizing, IndexedDB and network pause/resume. Previous work used mocked tests and syntax checks; browser rendering, Google playback and pronunciation were not verified in this environment.
 
