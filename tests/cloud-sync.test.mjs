@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {data as entries} from '../data/vocabulary.mjs';
 import {
   keyFor, bucketFor, packQuiz, packFlashcard, mergePacked, mergeDocument,
   aggregate, nextPacked, validPacked, MODES, BUCKETS
-} from '../data/firebase-sync.mjs';
+} from '../assets/js/cloud-sync.mjs';
 
 const entry = ['妈', 'mā', 'noun', 'mother', 'hsk-1'];
 const key = keyFor(entry), vocabulary = new Map([[key, entry]]);
@@ -89,8 +90,6 @@ test('malformed and unknown cloud records cannot enter a review deck', () => {
 });
 
 test('all current vocabulary fits comfortably in four bounded documents per review type', () => {
-  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  const entries = JSON.parse(html.match(/const data=(\[.*?\]);/s)[1]);
   const shards = Array.from({length: BUCKETS}, () => ({}));
   for (const entry of entries) shards[bucketFor(keyFor(entry))][keyFor(entry)] = Array(12).fill(999999999);
   for (const c of shards) assert.ok(Buffer.byteLength(JSON.stringify(c)) < 500000);
