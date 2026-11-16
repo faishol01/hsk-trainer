@@ -1,18 +1,9 @@
-import { initWordStats } from "./stats.mjs";
 import { data } from "../../data/vocabulary.mjs";
 import { initialPositions } from "../../data/initial-positions.mjs";
-import { localSentenceData } from "../../data/sentence-index.mjs";
-import { initFlashcards } from "./flashcards.mjs";
-import { initQuiz } from "./quiz.mjs";
-import {
-  buildWordRelationships,
-  collectLinkedWords,
-} from "./relationships.mjs";
-import { createSpeechPlayer } from "./audio.mjs";
-import { initSentenceExamples } from "./sentences.mjs";
+import { collectLinkedWords } from "./relationships.mjs";
 import { esc, norm } from "./utils.mjs";
 
-export function startApp() {
+export function startApp({ features, relations, source, onReady, onError }) {
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
       try {
@@ -30,33 +21,10 @@ export function startApp() {
           canvas = document.querySelector("#canvas");
         let selected = -1;
 
-        // Firebase is optional; local review remains available without configuration.
-        const cloudReady = import("./cloud-sync.mjs")
-          .then((module) => module.initCloudSync(data))
-          .catch((error) => {
-            const status = document.getElementById("cloud-status");
-            status.textContent =
-              "Cloud sync could not load. Local review is still available.";
-            status.dataset.error = "true";
-            const launch = document.getElementById("cloud-open");
-            launch.disabled = false;
-            launch.addEventListener("click", () =>
-              document.getElementById("cloud-dialog").showModal(),
-            );
-            document
-              .getElementById("cloud-close")
-              .addEventListener("click", () =>
-                document.getElementById("cloud-dialog").close(),
-              );
-            console.error("Cloud sync initialization failed", error);
-            return null;
-          });
-
-        initFlashcards(data, cloudReady);
-        const wordStats = initWordStats({ entries: data, cloudReady });
-
+        const wordStats = features.wordStats;
+        features.setSelectedGetter(() => selected);
         const { edges, alternateReadings, neighborSets, linkedCounts } =
-          buildWordRelationships(data);
+          relations;
         // Quiz selection is independent of the user interface, so it can be checked separately.
         function filterMatches(i) {
           const allowed = [
@@ -216,7 +184,7 @@ export function startApp() {
 
           const speakButton = document.querySelector("#speak-word"),
             speechStatus = document.querySelector("#speech-status");
-          const { stopSpeech, playSpeech } = createSpeechPlayer();
+          const { stopSpeech, playSpeech } = source.speech;
           speakButton.addEventListener("click", () => {
             if (selected >= 0) playSpeech(data[selected][0], speechStatus);
           });
@@ -226,12 +194,7 @@ export function startApp() {
             showExamples,
             getSentenceCorpus,
             invalidateExamples,
-          } = initSentenceExamples({
-            data,
-            localSentenceData,
-            getSelected: () => selected,
-            playSpeech,
-          });
+          } = source.examples;
           const linkedPanel = document.querySelector("#linked-panel"),
             linkedList = document.querySelector("#linked-list");
           function renderLinkedPanel(id) {
@@ -381,15 +344,6 @@ export function startApp() {
               animation: { duration: 450, easingFunction: "easeInOutQuad" },
             });
           }
-          initQuiz({
-            data,
-            neighborSets,
-            localSentenceData,
-            cloudReady,
-            getSentenceCorpus,
-            network,
-            isLayoutFixed: () => layoutFixed,
-          });
           network.on("click", (p) => {
             if (p.nodes.length) highlight(p.nodes[0]);
           });
@@ -466,11 +420,18 @@ export function startApp() {
             } else freezeLayout();
           });
           reset();
+          onReady?.({
+            redraw() {
+              network.redraw();
+              network.fit();
+            },
+          });
         }
       } catch (error) {
         const loader = document.querySelector("#network-loading");
         loader.innerHTML =
           '<div class="loading-card"><strong>Could not load the network</strong><span>Refresh the page to try again.</span></div>';
+        onError?.(error);
         console.error(error);
       }
     }),

@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "input": "hsk-1-4-combined.tsv",
+    "input": "hsk-1-4-words.tsv",
     "input_sha256": "6731361827a1905316aca112baa7c6e5669da3e0245910ca995f1a414509c750",
     "vocabulary_rows": 2000,
     "character_count": 1096,

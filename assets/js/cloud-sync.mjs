@@ -1,3 +1,5 @@
+import { publishCloudStatus } from "./cloud-status.mjs";
+
 // Compact, account-scoped progress. Vocabulary and sentences never enter Firestore.
 export const SDK_VERSION = "13.2.0";
 export const MODES = ["translation", "character", "pinyin", "sentence"];
@@ -401,7 +403,7 @@ export function readGuest(indexedDBApi, database, objectStore) {
   });
 }
 
-export async function initCloudSync(entries) {
+export async function initCloudSync(entries = [], { bindLaunch = true } = {}) {
   const vocabulary = new Map(entries.map((entry) => [keyFor(entry), entry]));
   const cache = new ProgressCache(window.indexedDB, vocabulary);
   const el = (id) => document.getElementById("cloud-" + id);
@@ -439,9 +441,22 @@ export async function initCloudSync(entries) {
     window.dispatchEvent(
       new CustomEvent("hsk-progress-changed", { detail: { accountChanged } }),
     );
-  function status(text, error = false) {
+  let phase = "checking",
+    lastMessage = "Checking cloud sync...";
+  function publish() {
+    publishCloudStatus({
+      phase,
+      account: user ? { uid: user.uid, email: user.email || null } : null,
+      online: navigator.onLine !== false,
+      message: lastMessage,
+    });
+  }
+  function status(text, error = false, nextPhase = phase) {
+    phase = error ? "error" : nextPhase;
+    lastMessage = text;
     el("status").textContent = text;
     el("status").dataset.error = String(error);
+    publish();
   }
   function controls() {
     el("signin").disabled = !initialized || Boolean(user);
@@ -452,6 +467,7 @@ export async function initCloudSync(entries) {
       ? `Signed in as ${user.email || user.uid}`
       : "Progress is currently stored on this device.";
     el("open").textContent = user ? "Cloud sync: on" : "Cloud sync";
+    publish();
   }
   function schedule(delay = 10000) {
     if (timer || !user) return;
@@ -484,11 +500,11 @@ export async function initCloudSync(entries) {
           }
           const pending = await cache.list(uid, "pending");
           if (!pending.length) {
-            status("All progress is synced.");
+            status("All progress is synced.", false, "synced");
             return;
           }
           if (user?.uid !== uid) return;
-          status("Syncing saved progress...");
+          status("Syncing saved progress...", false, "syncing");
           // No per-answer cloud writes: only dirty fields in affected device buckets.
           const batch = firestore.writeBatch(db);
           for (const item of pending) {
@@ -513,6 +529,8 @@ export async function initCloudSync(entries) {
             remaining.length
               ? "New progress is waiting to sync."
               : "All progress is synced.",
+            false,
+            remaining.length ? "pending" : "synced",
           );
           if (remaining.length) schedule();
         },
@@ -533,6 +551,16 @@ export async function initCloudSync(entries) {
   }
   const controller = {
     signedIn: () => Boolean(user),
+    setVocabulary(entries) {
+      vocabulary.clear();
+      for (const entry of entries) vocabulary.set(keyFor(entry), entry);
+    },
+    open() {
+      dialog.hidden = false;
+    },
+    close() {
+      dialog.hidden = true;
+    },
     async stats() {
       if (!user) throw new Error("Account changed; reopen stats");
       const account = { uid: user.uid, email: user.email || null };
@@ -562,7 +590,11 @@ export async function initCloudSync(entries) {
       );
       if (user?.uid === uid) {
         window.dispatchEvent(new CustomEvent("hsk-progress-saved"));
-        status("Progress saved on this device; cloud sync is pending.");
+        status(
+          "Progress saved on this device; cloud sync is pending.",
+          false,
+          "pending",
+        );
         schedule();
       }
       channel?.postMessage({ uid });
@@ -570,8 +602,11 @@ export async function initCloudSync(entries) {
     },
   };
   el("open").disabled = false;
-  el("open").addEventListener("click", () => dialog.showModal());
-  el("close").addEventListener("click", () => dialog.close());
+  if (bindLaunch) el("open").addEventListener("click", () => controller.open());
+  el("close").addEventListener("click", () => {
+    controller.close();
+    window.location.hash = "#home";
+  });
   el("sync").addEventListener("click", () => flush());
   el("signin").addEventListener("click", () => {
     // Called directly from a tap so mobile browsers can open the OAuth popup.
@@ -599,6 +634,11 @@ export async function initCloudSync(entries) {
     const uid = user.uid;
     el("import").disabled = true;
     try {
+      // Home/Cloud status need no word data; importing old progress does.
+      if (!vocabulary.size) {
+        const { data } = await import("../../data/vocabulary.mjs");
+        controller.setVocabulary(data);
+      }
       const [quiz, flashcards] = await Promise.all([
         readGuest(window.indexedDB, "hsk-word-quiz", "wordProgress"),
         readGuest(window.indexedDB, "hsk-word-flashcards", "cardProgress"),
@@ -624,8 +664,10 @@ export async function initCloudSync(entries) {
     }
   });
   window.addEventListener("online", () => {
+    publish();
     schedule(0);
   });
+  window.addEventListener("offline", publish);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) flush().catch(() => {});
   });
@@ -646,6 +688,8 @@ export async function initCloudSync(entries) {
     if (!config.enabled) {
       status(
         "Cloud sync is not enabled yet. You can keep reviewing on this device.",
+        false,
+        "disabled",
       );
       return controller;
     }
@@ -697,9 +741,11 @@ export async function initCloudSync(entries) {
                 if (!next)
                   status(
                     "Sign in to sync progress between your devices. Local-only progress is unchanged.",
+                    false,
+                    "signed-out",
                   );
                 else {
-                  status("Loading cloud progress...");
+                  status("Loading cloud progress...", false, "syncing");
                   stopListening = f.onSnapshot(
                     f.collection(db, "users", next.uid, "progress"),
                     (snapshot) => {
@@ -726,6 +772,8 @@ export async function initCloudSync(entries) {
                               pending.length
                                 ? "Progress saved locally; sync is pending."
                                 : "All progress is synced.",
+                              false,
+                              pending.length ? "pending" : "synced",
                             );
                             schedule(0);
                           }

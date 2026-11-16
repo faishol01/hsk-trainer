@@ -1,7 +1,11 @@
 import { flashcardKey, flashcardCandidates } from "./flashcard-model.mjs";
 import { createFlashcardStore } from "./progress.mjs";
 
-export function initFlashcards(entries, cloudReady) {
+export function initFlashcards(
+  entries,
+  cloudReady,
+  { bindLaunch = true, onClose } = {},
+) {
   const el = (id) => document.getElementById("flashcard-" + id);
   const overlay = el("overlay"),
     launch = document.getElementById("flashcard-open");
@@ -66,7 +70,6 @@ export function initFlashcards(entries, cloudReady) {
   async function open() {
     generation++;
     const token = generation;
-    document.body.classList.add("flashcard-active");
     overlay.hidden = false;
     launch.setAttribute("aria-expanded", "true");
     ready = false;
@@ -91,13 +94,15 @@ export function initFlashcards(entries, cloudReady) {
     }
     updateSetup();
   }
-  function close() {
-    if (saving) return;
+  function close({ force = false, notify = true } = {}) {
+    if (saving && !force) return;
+    if (force) setSaving(false);
     generation++;
     overlay.hidden = true;
     document.body.classList.remove("flashcard-active");
     launch.setAttribute("aria-expanded", "false");
-    launch.focus();
+    if (notify && onClose) onClose();
+    else if (notify) launch.focus();
     // vis-network handles the viewport change when its container becomes visible.
     window.dispatchEvent(new Event("resize"));
   }
@@ -207,7 +212,7 @@ export function initFlashcards(entries, cloudReady) {
   });
 
   launch.disabled = false;
-  launch.addEventListener("click", open);
+  if (bindLaunch) launch.addEventListener("click", open);
   el("close").addEventListener("click", close);
   document
     .querySelectorAll(".flashcard-level")
@@ -250,4 +255,5 @@ export function initFlashcards(entries, cloudReady) {
       close();
     }
   });
+  return { open, close };
 }

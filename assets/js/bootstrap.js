@@ -1,16 +1,8 @@
-// Run after the document and the bundled network library have loaded.
-const quizLaunch = document.getElementById("quiz-open");
-quizLaunch.onclick = () => {
-  window.__openQuizWhenReady = true;
-};
-function reportLoadError(error) {
-  const loader = document.getElementById("network-loading");
-  loader.hidden = false;
-  loader.innerHTML =
-    '<div class="loading-card"><strong>Could not load the viewer</strong><span>Refresh the page to try again.</span></div>';
-  console.error(error);
-}
-import("./mobile.mjs")
-  .then((module) => module.initMobileLayout())
-  .catch(reportLoadError);
-import("./app.mjs").then((module) => module.startApp()).catch(reportLoadError);
+// The chooser loads first. Data and feature modules load only when selected.
+import("./shell.mjs")
+  .then((module) => module.initFeatureShell())
+  .catch((error) => {
+    document.getElementById("feature-status").textContent =
+      "Could not load the feature menu. Refresh the page to try again.";
+    console.error(error);
+  });

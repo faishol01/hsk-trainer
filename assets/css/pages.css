@@ -1,0 +1,174 @@
+/* Every feature shares the same title, Home navigation, and sync indicator. */
+#feature-home-link[hidden],
+#feature-launchers[hidden],
+#stats-view[hidden],
+#cloud-dialog[hidden] {
+  display: none !important;
+}
+body > header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 16px;
+}
+body > header .header-title {
+  display: block;
+  flex: 1 1 0;
+  min-width: 0;
+}
+body > header h1 {
+  overflow-wrap: anywhere;
+}
+#page-description:empty {
+  display: none;
+}
+.cloud-sync-indicator {
+  display: flex;
+  flex: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  padding: 8px 24px;
+  border-bottom: 1px solid #dce8dd;
+  background: #edf5ec;
+  color: #66796a;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.cloud-sync-indicator a {
+  color: #286d47;
+  text-decoration: none;
+  font-weight: 650;
+}
+.cloud-sync-indicator a:hover {
+  text-decoration: underline;
+}
+.cloud-sync-indicator[data-state="error"] a,
+.cloud-sync-indicator[data-state="offline"] a {
+  color: #a2372c;
+}
+.cloud-sync-indicator[data-state="pending"] a,
+.cloud-sync-indicator[data-state="syncing"] a {
+  color: #8b641e;
+}
+#cloud-sync-account {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.study-page {
+  flex: 1;
+  min-height: 0;
+}
+#stats-view,
+#cloud-dialog {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 24px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow-y: auto;
+  background: #f5f8f4;
+}
+.study-content {
+  width: min(1000px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+  border: 1px solid #dce8dd;
+  border-radius: 14px;
+  background: #fff;
+}
+#cloud-dialog .study-content {
+  max-width: 720px;
+}
+#cloud-dialog header {
+  display: none;
+}
+#quiz-overlay,
+#flashcard-overlay {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  display: block;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  padding: 24px;
+  border-radius: 0;
+}
+#quiz-overlay .quiz-card,
+#flashcard-overlay .flashcard-shell {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  max-height: none;
+  overflow: visible;
+}
+#quiz-overlay .quiz-head,
+#flashcard-overlay .flashcard-head {
+  display: none;
+}
+.word-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.word-actions button {
+  min-height: 44px;
+  border: 1px solid #bcd7c1;
+  background: #fff;
+  color: #286d47;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.word-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+@media (max-width: 900px) {
+  body > header {
+    padding: 10px 14px;
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+  body > header .header-title {
+    flex: 1 1 0;
+  }
+  body > header h1 {
+    font-size: 18px;
+  }
+  .feature-home-link {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+  .cloud-sync-indicator {
+    padding: 7px 14px;
+    font-size: 11px;
+  }
+  #stats-view,
+  #cloud-dialog,
+  #quiz-overlay,
+  #flashcard-overlay {
+    padding: 12px max(10px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+  }
+  .study-content {
+    padding: 16px;
+  }
+  .word-actions {
+    gap: 6px;
+  }
+  .word-actions button {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+}

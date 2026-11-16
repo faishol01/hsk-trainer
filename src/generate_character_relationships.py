@@ -148,7 +148,7 @@ def generate(input_path, dictionary_path, output_dir):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", type=Path, default=ROOT / "data/hsk-1-4-combined.tsv")
+    parser.add_argument("--input", type=Path, default=ROOT / "data/hsk-1-4-words.tsv")
     parser.add_argument("--dictionary", type=Path, default=ROOT / "data/character-source/dictionary.jsonl")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "data")
     args = parser.parse_args()
