@@ -713,6 +713,7 @@ export async function initCloudSync(entries = [], { bindLaunch = true } = {}) {
     const app = appApi.initializeApp(config.firebaseConfig);
     auth = a.getAuth(app);
     db = f.initializeFirestore(app, {
+      experimentalForceLongPolling: true,
       localCache: f.persistentLocalCache({
         tabManager: f.persistentMultipleTabManager(),
       }),
