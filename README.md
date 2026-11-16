@@ -27,7 +27,7 @@ Keep the network, search, filters, quiz, sentence examples, audio and stored qui
 The application uses HTML, external CSS, and native JavaScript modules. There is no build step. Publish `index.html`, `assets/`, and `data/` together. Run `python serve.py` for local HTTP access; the server exposes those runtime paths and blocks directory listings and other workspace files.
 
 - `index.html`: page markup and external stylesheet/script references.
-- `assets/css/viewer.css`, `mobile.css`, `flashcards.css`, `cloud-sync.css`: base viewer styles, responsive layout, flashcards, and cloud controls. Link order preserves the existing cascade.
+- `assets/css/viewer.css`, `mobile.css`, `flashcards.css`, `cloud-sync.css`, `stats.css`: base viewer styles, responsive layout, flashcards, cloud controls, and progress statistics. Link order preserves the existing cascade.
 - `assets/vendor/vis-network.min.js`: unchanged vis-network 9.1.9 bundle with its license header.
 - `assets/js/bootstrap.js`: early quiz-click handling and dynamic module loading with a visible load-error fallback.
 - `assets/js/app.mjs`: network initialization, sidebar selection, and feature wiring.
@@ -81,6 +81,16 @@ The header Flashcards button opens a dedicated review screen. Users must select 
 Review again repeats the card later in the current session, resets its remembered streak, and schedules it in five minutes. Remembered schedules the next review after 1, 3, 7, 14, then 30 days, based on consecutive remembered ratings. Each rating is saved immediately. Ending or reloading a session preserves completed ratings; the next session is built from the saved schedule rather than resuming the exact queue.
 
 Local-only flashcard progress uses a separate IndexedDB database, `hsk-word-flashcards`, version 1, object store `cardProgress`. Keys are JSON.stringify([characters, normalized lower-case pinyin]), retaining distinct readings. Records include review counts, remembered/again counts, streak, interval, last review, and next due date. Existing quiz progress is unchanged. If loading storage fails, review stays disabled; if saving fails, the current card remains available for retry. Progress belongs to the browser profile and site origin.
+
+## Word statistics
+
+My stats in the header opens a searchable, paginated table for every vocabulary entry. Select a word in the network or sidebar and use its Stats button to open that word directly. Different readings of the same characters keep separate histories.
+
+The overview supports HSK level, practiced/unpracticed, and due-flashcard filters, with sorting by practice count, quiz accuracy, due date, or pinyin. Summary accuracy is calculated from total correct answers divided by total answers, not the average of individual word percentages. Word details show quiz counts and accuracy by mode, the last quiz answer, flashcard remembered/again counts, the current streak, last review, and next scheduled review. Unpracticed words have no accuracy percentage.
+
+Statistics are computed from existing progress and do not introduce a new storage schema. Signed-out stats read the original local-only quiz and flashcard databases without creating empty databases. Signed-in stats use only that account's IndexedDB cache, reading cached bucket documents once for both quiz and flashcards; opening stats makes no extra Firestore requests. Local-only history is not mixed into account history unless explicitly imported through Cloud sync. Open stats refresh on account changes, cloud updates, successful ratings, and window focus. The Refresh button can be used to re-evaluate due times or retry an unavailable store. Storage failures are shown as errors rather than zero progress.
+
+The UI is in `assets/js/stats.mjs`, calculations and filtering in `assets/js/stats-model.mjs`, and responsive styles in `assets/css/stats.css`. The table renders 50 rows at a time and keeps the word column visible during horizontal scrolling on small screens.
 
 ## Firebase cloud sync
 

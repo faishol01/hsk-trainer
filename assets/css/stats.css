@@ -1,0 +1,221 @@
+.stats-launch {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #bcd7c1;
+  border-radius: 10px;
+  background: #fff;
+  color: #286d47;
+  font: 650 13px system-ui;
+  cursor: pointer;
+}
+.stats-launch:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.stats-dialog {
+  width: min(1000px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  border: 1px solid #dce8dd;
+  border-radius: 16px;
+  padding: 22px;
+  background: #fff;
+  color: #26372e;
+  overflow: auto;
+}
+.stats-dialog::backdrop {
+  background: #12281c80;
+}
+.stats-dialog [hidden] {
+  display: none !important;
+}
+.stats-head,
+.stats-tools,
+.stats-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.stats-head h2 {
+  font-size: 24px;
+}
+.stats-context,
+.stats-message,
+.stats-meta {
+  color: #6b7d70;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.stats-message[data-error="true"] {
+  color: #a2372c;
+}
+.stats-dialog button,
+.stats-dialog input,
+.stats-dialog select {
+  min-height: 44px;
+  font: inherit;
+}
+.stats-dialog button {
+  border: 1px solid #c8ddcc;
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #286d47;
+  background: #f7fbf7;
+  cursor: pointer;
+}
+.stats-dialog button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.stats-summary,
+.stats-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+.stats-metric {
+  padding: 12px;
+  border: 1px solid #dce8dd;
+  border-radius: 10px;
+  background: #f5f9f4;
+  min-width: 0;
+}
+.stats-metric dt {
+  font-size: 12px;
+  color: #6b7d70;
+}
+.stats-metric dd {
+  font-size: 21px;
+  font-weight: 700;
+  color: #234b34;
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+.stats-filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 10px;
+  margin: 16px 0;
+}
+.stats-filters label {
+  display: block;
+  color: #506658;
+  font-size: 12px;
+  font-weight: 650;
+  min-width: 0;
+}
+.stats-filters input,
+.stats-filters select {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  border: 1px solid #cfded2;
+  border-radius: 8px;
+  padding: 9px;
+  background: white;
+  color: #26372e;
+}
+.stats-table-wrap {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.stats-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+  text-align: left;
+}
+.stats-table th,
+.stats-table td {
+  border-bottom: 1px solid #e4eee5;
+  padding: 11px;
+  vertical-align: top;
+}
+.stats-table thead {
+  color: #506658;
+  background: #f5f9f4;
+}
+.stats-word-table {
+  min-width: 620px;
+}
+.stats-word-table button {
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  width: 100%;
+  font-size: 18px;
+}
+.stats-table small {
+  display: block;
+  font-size: 12px;
+  color: #6b7d70;
+  font-weight: 400;
+  margin-top: 5px;
+}
+.stats-pagination {
+  margin-top: 14px;
+  color: #6b7d70;
+  font-size: 13px;
+}
+.stats-word {
+  font-size: 30px;
+  margin: 18px 0 4px;
+}
+.stats-detail-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.stats-detail-section {
+  margin-top: 22px;
+}
+.stats-detail-section h4 {
+  font-size: 17px;
+  margin: 0;
+}
+.stats-caption {
+  text-align: left;
+  padding: 8px 0;
+  color: #6b7d70;
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .header-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .stats-dialog {
+    padding: 14px;
+    max-height: calc(100dvh - 16px);
+    width: calc(100% - 16px);
+  }
+  .stats-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+  .stats-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .stats-filters .stats-search-label {
+    grid-column: 1 / -1;
+  }
+  .stats-filters input,
+  .stats-filters select {
+    font-size: 16px;
+  }
+  .stats-word-table th:first-child {
+    position: sticky;
+    left: 0;
+    background: #fff;
+    z-index: 1;
+    min-width: 120px;
+  }
+  .stats-metric dd {
+    font-size: 19px;
+  }
+}
+@media (min-width: 600px) and (max-width: 900px) and (max-height: 500px) {
+  .header-actions {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}

@@ -1,3 +1,4 @@
+import { initWordStats } from "./stats.mjs";
 import { data } from "../../data/vocabulary.mjs";
 import { initialPositions } from "../../data/initial-positions.mjs";
 import { localSentenceData } from "../../data/sentence-index.mjs";
@@ -52,6 +53,7 @@ export function startApp() {
           });
 
         initFlashcards(data, cloudReady);
+        const wordStats = initWordStats({ entries: data, cloudReady });
 
         const { edges, alternateReadings, neighborSets, linkedCounts } =
           buildWordRelationships(data);
@@ -272,6 +274,7 @@ export function startApp() {
           function highlight(i) {
             stopSpeech();
             selected = i;
+            wordStats.setSelected(data[i]);
             renderLinkedPanel(i);
             speakButton.disabled = false;
             examplesButton.disabled = false;
@@ -325,6 +328,7 @@ export function startApp() {
           function applyFilters() {
             linkedPanel.hidden = true;
             selected = -1;
+            wordStats.setSelected(null);
             speakButton.disabled = true;
             examplesButton.disabled = true;
             examplesPanel.hidden = true;

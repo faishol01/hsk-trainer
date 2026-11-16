@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="./assets/css/mobile.css" />
     <link rel="stylesheet" href="./assets/css/flashcards.css" />
     <link rel="stylesheet" href="./assets/css/cloud-sync.css" />
+    <link rel="stylesheet" href="./assets/css/stats.css" />
   </head>
   <body>
     <header>
@@ -19,6 +20,16 @@
         <p>Explore how words appear inside other words · HSK 1–4</p>
       </div>
       <div class="header-actions">
+        <button
+          id="stats-open"
+          class="stats-launch"
+          type="button"
+          aria-controls="stats-dialog"
+          aria-haspopup="dialog"
+          disabled
+        >
+          My stats
+        </button>
         <button
           id="browse-words"
           class="mobile-browse"
@@ -132,6 +143,15 @@
       <main>
         <div class="word-heading">
           <h2 id="title"></h2>
+          <button
+            id="word-stats"
+            type="button"
+            aria-controls="stats-dialog"
+            aria-haspopup="dialog"
+            disabled
+          >
+            Stats
+          </button>
           <button
             id="speak-word"
             type="button"
@@ -328,6 +348,129 @@
         <p id="quiz-db-note" class="quiz-meta" role="status"></p>
       </div>
     </main>
+
+    <dialog
+      id="stats-dialog"
+      class="stats-dialog"
+      aria-labelledby="stats-title"
+    >
+      <div class="stats-head">
+        <div>
+          <h2 id="stats-title">My progress</h2>
+          <p id="stats-context" class="stats-context"></p>
+        </div>
+        <div class="stats-tools">
+          <button id="stats-refresh" type="button">Refresh</button
+          ><button id="stats-close" type="button">Close</button>
+        </div>
+      </div>
+      <p
+        id="stats-message"
+        class="stats-message"
+        role="status"
+        aria-live="polite"
+      ></p>
+      <button id="stats-back" type="button" hidden>All words</button>
+      <div id="stats-content" hidden>
+        <section id="stats-overview" aria-label="Word progress overview">
+          <div class="stats-filters">
+            <label class="stats-search-label"
+              >Search words<input
+                id="stats-search"
+                type="search"
+                placeholder="Chinese, pinyin, or meaning"
+                autocomplete="off"
+            /></label>
+            <label
+              >HSK level<select id="stats-level">
+                <option value="all">All levels</option>
+                <option value="hsk-1">HSK 1</option>
+                <option value="hsk-2">HSK 2</option>
+                <option value="hsk-3">HSK 3</option>
+                <option value="hsk-4">HSK 4</option>
+              </select></label
+            >
+            <label
+              >Progress<select id="stats-filter">
+                <option value="all">All words</option>
+                <option value="practiced">Practiced</option>
+                <option value="new">Not practiced</option>
+                <option value="due">Flashcards due</option>
+              </select></label
+            >
+            <label
+              >Sort by<select id="stats-sort">
+                <option value="reviewed">Most practiced</option>
+                <option value="accuracy">Lowest quiz accuracy</option>
+                <option value="due">Due first</option>
+                <option value="pinyin">Pinyin</option>
+              </select></label
+            >
+          </div>
+          <dl
+            id="stats-summary"
+            class="stats-summary"
+            aria-label="Summary for matching words"
+          ></dl>
+          <div class="stats-table-wrap">
+            <table class="stats-table stats-word-table">
+              <caption class="stats-caption">
+                Select a word for detailed stats. Scroll sideways on narrow
+                screens to see all columns.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Word</th>
+                  <th scope="col">Quiz</th>
+                  <th scope="col">Flashcards</th>
+                  <th scope="col">Next flashcard review</th>
+                </tr>
+              </thead>
+              <tbody id="stats-rows"></tbody>
+            </table>
+          </div>
+          <div class="stats-pagination">
+            <button id="stats-previous" type="button">Previous</button
+            ><span id="stats-page" role="status"></span
+            ><button id="stats-next" type="button">Next</button>
+          </div>
+        </section>
+        <section id="stats-detail" hidden aria-label="Selected word stats">
+          <h3 id="stats-word" class="stats-word" lang="zh-Hans"></h3>
+          <p id="stats-reading" class="stats-meta"></p>
+          <p id="stats-meaning"></p>
+          <p id="stats-empty-word" class="stats-meta">
+            You have not practiced this word yet.
+          </p>
+          <div class="stats-detail-section">
+            <h4>Quiz results</h4>
+            <dl id="stats-quiz-metrics" class="stats-detail-metrics"></dl>
+            <p id="stats-quiz-last" class="stats-meta"></p>
+            <div class="stats-table-wrap">
+              <table class="stats-table">
+                <caption class="stats-caption">
+                  Results by quiz mode
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Mode</th>
+                    <th scope="col">Correct / answers</th>
+                    <th scope="col">Accuracy</th>
+                  </tr>
+                </thead>
+                <tbody id="stats-modes"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="stats-detail-section">
+            <h4>Flashcards</h4>
+            <dl id="stats-flash-metrics" class="stats-detail-metrics"></dl>
+            <p id="stats-flash-last" class="stats-meta"></p>
+            <p id="stats-schedule" class="stats-meta"></p>
+          </div>
+        </section>
+      </div>
+    </dialog>
 
     <dialog
       id="cloud-dialog"
