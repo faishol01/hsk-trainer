@@ -595,7 +595,7 @@ main .desc {
   padding: 14px;
 }
 .quiz-overlay[hidden] {
-  display: none;
+  display: none !important;
 }
 .quiz-card {
   background: #fff;
@@ -724,7 +724,7 @@ main .desc {
   overflow: auto;
 }
 .quiz-overlay[hidden] {
-  display: none;
+  display: none !important;
 }
 .quiz-card {
   width: min(720px, 100%);

@@ -282,7 +282,9 @@ export function initQuiz({
   cloudReady,
   getSentenceCorpus,
   network,
-  isLayoutFixed,
+  isLayoutFixed = () => false,
+  bindLaunch = true,
+  onClose,
 }) {
   const sentenceQuiz = makeSentenceQuiz(data, neighborSets, localSentenceData);
   const quizEngine = makeQuizEngine(data, neighborSets),
@@ -355,7 +357,6 @@ export function initQuiz({
     quizMode.focus();
   }
   function openQuiz() {
-    document.body.classList.add("quiz-active");
     quizOverlay.hidden = false;
     document.querySelector("#quiz-open").setAttribute("aria-expanded", "true");
     showQuizSetup();
@@ -369,17 +370,18 @@ export function initQuiz({
         quizDbNote.textContent = "Progress could not be saved in this browser.";
       });
   }
-  function closeQuiz() {
+  function closeQuiz({ notify = true } = {}) {
     quizOverlay.hidden = true;
     document.body.classList.remove("quiz-active");
-    network.redraw();
-    if (isLayoutFixed()) network.fit();
+    network?.redraw();
+    if (isLayoutFixed()) network?.fit();
     document.querySelector("#quiz-open").setAttribute("aria-expanded", "false");
-    document.querySelector("#quiz-open").focus();
+    if (notify && onClose) onClose();
+    else if (notify) document.querySelector("#quiz-open").focus();
   }
   const quizLaunch = document.querySelector("#quiz-open");
   quizLaunch.onclick = null;
-  quizLaunch.addEventListener("click", openQuiz);
+  if (bindLaunch) quizLaunch.addEventListener("click", openQuiz);
   if (window.__openQuizWhenReady) {
     window.__openQuizWhenReady = false;
     openQuiz();
@@ -468,4 +470,5 @@ export function initQuiz({
         quizDbNote.textContent = "Progress could not be saved in this browser.";
       });
   });
+  return { open: openQuiz, close: closeQuiz };
 }

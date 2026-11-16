@@ -26,6 +26,7 @@ export function initMobileLayout() {
       if (restoreFocus && mobile.matches) launch.focus();
     }
   }
+  window.addEventListener("hsk-feature-leaving", () => setOpen(false, false));
   launch.addEventListener("click", () => setOpen(true));
   close.addEventListener("click", () => setOpen(false));
   backdrop.addEventListener("click", () => setOpen(false));

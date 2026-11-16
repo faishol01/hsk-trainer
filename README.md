@@ -10,7 +10,7 @@ Prepared 4 November 2026. This guide is for an AI or developer continuing the us
 
 [Sentence source cmn_sen_db_2.tsv](./data/cmn_sen_db_2.tsv)
 
-[Original HSK 1–4 combined TSV](./data/hsk-1-4-combined.tsv)
+[Original HSK 1–4 combined TSV](./data/hsk-1-4-words.tsv)
 
 [Original HSK 1–4 word links TSV](./data/hsk-1-4-word-links.tsv)
 
@@ -29,7 +29,7 @@ The application uses HTML, external CSS, and native JavaScript modules. There is
 - `index.html`: page markup and external stylesheet/script references.
 - `assets/css/viewer.css`, `mobile.css`, `flashcards.css`, `cloud-sync.css`, `stats.css`: base viewer styles, responsive layout, flashcards, cloud controls, and progress statistics. Link order preserves the existing cascade.
 - `assets/vendor/vis-network.min.js`: unchanged vis-network 9.1.9 bundle with its license header.
-- `assets/js/bootstrap.js`: early quiz-click handling and dynamic module loading with a visible load-error fallback.
+- `assets/js/bootstrap.js`: the deferred feature-menu entry point, with a visible load-error fallback.
 - `assets/js/app.mjs`: network initialization, sidebar selection, and feature wiring.
 - `assets/js/relationships.mjs`, `utils.mjs`: word relationship computation and shared text helpers.
 - `assets/js/quiz.mjs`: quiz engines and quiz interface.
@@ -40,7 +40,7 @@ The application uses HTML, external CSS, and native JavaScript modules. There is
 - `assets/js/cloud-sync.mjs`: optional Firebase integration. Its public configuration remains `data/firebase-config.json`.
 - `data/vocabulary.mjs`, `initial-positions.mjs`, `sentence-index.mjs`: authoritative vocabulary, parallel coordinates, and word-to-sentence-ID index. These contain the same data extracted from the original HTML.
 
-The classic vendor script loads before bootstrap using ordered `defer` scripts. Bootstrap initializes mobile navigation and imports the app; the app retains its two-frame delay before starting the network. Native module imports are relative, so repository paths on GitHub Pages work without a bundler.
+A single deferred bootstrap loads the feature shell and displays the chooser first. The shell loads the network library and initializes mobile map navigation only when Word explorer is selected; the app retains its two-frame delay before starting that network. Native module imports are relative, so repository paths on GitHub Pages work without a bundler.
 
 ### Network data and layout
 
@@ -82,9 +82,29 @@ Review again repeats the card later in the current session, resets its remembere
 
 Local-only flashcard progress uses a separate IndexedDB database, `hsk-word-flashcards`, version 1, object store `cardProgress`. Keys are JSON.stringify([characters, normalized lower-case pinyin]), retaining distinct readings. Records include review counts, remembered/again counts, streak, interval, last review, and next due date. Existing quiz progress is unchanged. If loading storage fails, review stays disabled; if saving fails, the current card remains available for retry. Progress belongs to the browser profile and site origin.
 
+## Feature chooser and grammar explorer
+
+The page starts with a feature chooser: Word explorer (word mapping), Statistics, Flashcards, Quiz, Cloud sync, and Grammar explorer. Each feature is a regular page view with a hash route (`#explorer`, `#statistics`, `#flashcards`, `#quiz`, `#cloud`, `#grammar`); `#home` returns to the chooser. Every page shares a consistent title, browser-tab title, Back to home link, and cloud sync indicator. Browser back/forward navigation works across routes. Statistics is a full page, including when opened for a selected word from the map. Its All words control returns to the statistics overview; the shared Back to home link always returns to the chooser.
+
+`assets/js/shell.mjs` owns navigation and lazy loading. `assets/js/features.mjs` shares account progress and study controllers without constructing the word map. The network library, coordinates, and network UI load only for Word explorer. Quiz builds its vocabulary relationships independently of vis-network. Grammar does not load the vocabulary or network library. The shared cloud status service starts independently on Home and remains active across all pages. The existing progress databases and Firebase schema are unchanged.
+
+Grammar explorer reads `data/hsk-1-6-grammar.tsv` on demand. The source currently contains 692 entries across HSK 1-6 (59, 61, 77, 172, 209, and 114 respectively). It has nine columns: HSK, Code, Lesson, Structure, Pinyin, English Equivalent, Example, Example Pinyin, Example Translation. Entries with repeated lesson codes remain separate. The one entry with an empty structure describes omitting ?; its English explanation is used as the display title while the original data remains unchanged.
+
+Users can search structures, tone-insensitive pinyin, English meanings, examples, and lesson codes, and filter by HSK level. The list displays 30 entries per page. Selecting an entry shows its structure, reading, explanation, and Chinese example with pinyin and translation. Play example uses the existing online speech player. On phones, details replace the result list and Back to grammar list restores the current filters/page. Grammar data is read-only and does not create progress records.
+
+Grammar logic and interface live in `assets/js/grammar-model.mjs` and `assets/js/grammar.mjs`; styles are in `assets/css/grammar.css`. The chooser uses `assets/css/features.css`. Publish these assets and the grammar TSV along with the other runtime files.
+
+### Shared page navigation and status
+
+`assets/js/cloud-service.mjs` initializes a single cloud controller for the entire page, without requiring vocabulary data on Home. `assets/js/cloud-status.mjs` renders checking, off, signed-out, pending, syncing, synced, unavailable, and signed-in/offline states in the shared status bar. Firebase still loads only when enabled in the public configuration. Vocabulary metadata is attached later when study features initialize, or loaded on demand when importing existing local history from the Cloud sync page. The existing account caches, outbox, and Firestore data format are unchanged.
+
+Quiz menu initialization does not load the sentence index or initialize example controls. These optional resources load only when a sentence or mixed quiz is started. Translation, character, and pinyin quizzes can start without them. The Home-to-Quiz route and question generation are covered by a regression test that deliberately makes sentence loading unavailable.
+
+The Word explorer page header contains only its title and Back to home navigation. Mobile Browse words, word statistics, speech, and examples are in a separate toolbar below the selected-word title. The previous feature-launch controls remain hidden for controller compatibility. Statistics, Quiz, Flashcards, and Cloud sync use regular page containers so the shared header and status bar remain visible. `assets/css/pages.css` supplies these shared page layouts.
+
 ## Word statistics
 
-My stats in the header opens a searchable, paginated table for every vocabulary entry. Select a word in the network or sidebar and use its Stats button to open that word directly. Different readings of the same characters keep separate histories.
+Statistics on Home opens a searchable, paginated page for every vocabulary entry. Select a word in the network or sidebar and use Stats in the toolbar below the selected word to open its statistics directly. Different readings of the same characters keep separate histories.
 
 The overview supports HSK level, practiced/unpracticed, and due-flashcard filters, with sorting by practice count, quiz accuracy, due date, or pinyin. Summary accuracy is calculated from total correct answers divided by total answers, not the average of individual word percentages. Word details show quiz counts and accuracy by mode, the last quiz answer, flashcard remembered/again counts, the current streak, last review, and next scheduled review. Unpracticed words have no accuracy percentage.
 
@@ -105,7 +125,7 @@ Cloud sync supports Google sign-in and shares quiz and flashcard progress across
 5. Fill `data/firebase-config.json`: copy `apiKey`, `authDomain`, `projectId`, and `appId` into `firebaseConfig`, and set `enabled` to `true`. These are public client identifiers. Never add service-account keys or Admin SDK credentials to the repository.
 6. Publish `index.html`, `assets/`, and `data/` to GitHub Pages, or run `python serve.py` locally. Open Cloud sync and sign in with the same Google account on both devices. Use Sync now before switching devices.
 
-The Cloud sync dialog shows account and sync status. Local-only history is not uploaded automatically: the user can explicitly import it once per browser and account. Import preserves both original local databases. Signing out returns to local-only history; account caches and pending uploads remain isolated by UID. Unsent account changes retry the next time that account is signed in and connected. Use a modern browser with IndexedDB, Web Locks, and ES module support. The public configuration ships disabled until a real project is connected.
+The Cloud sync page shows account and sync status. The shared status bar also appears on Home and every other feature page. Local-only history is not uploaded automatically: the user can explicitly import it once per browser and account. Import preserves both original local databases. Signing out returns to local-only history; account caches and pending uploads remain isolated by UID. Unsent account changes retry the next time that account is signed in and connected. Use a modern browser with IndexedDB, Web Locks, and ES module support. The public configuration ships disabled until a real project is connected.
 
 ### Storage design and efficiency
 

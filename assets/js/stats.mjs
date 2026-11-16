@@ -34,9 +34,12 @@ export function initWordStats({
   entries,
   cloudReady,
   indexedDBApi = window.indexedDB,
+  bindLaunch = true,
+  onNavigate,
+  onClose,
 }) {
   const el = (id) => document.getElementById("stats-" + id);
-  const dialog = el("dialog"),
+  const view = el("view"),
     launch = el("open"),
     wordLaunch = document.getElementById("word-stats");
   const pageSize = 50;
@@ -121,7 +124,7 @@ export function initWordStats({
     else renderOverview();
   }
   async function refresh() {
-    if (!dialog.open) return;
+    if (view.hidden) return;
     const token = ++generation;
     // Hide previous account data while a new snapshot is loading.
     el("content").hidden = true;
@@ -132,7 +135,7 @@ export function initWordStats({
     el("refresh").disabled = true;
     try {
       const snapshot = await readProgressSnapshot(indexedDBApi, cloudReady);
-      if (token !== generation || !dialog.open) return;
+      if (token !== generation || view.hidden) return;
       rows = buildWordStats(entries, snapshot);
       el("context").textContent = snapshot.account
         ? `Progress for ${snapshot.account.email || "your signed-in account"}`
@@ -143,7 +146,7 @@ export function initWordStats({
       el("content").hidden = false;
       render();
     } catch {
-      if (token !== generation || !dialog.open) return;
+      if (token !== generation || view.hidden) return;
       rows = [];
       el("context").textContent = "Progress unavailable";
       el("message").textContent =
@@ -155,21 +158,23 @@ export function initWordStats({
   }
   function open(entry = null) {
     detailKey = entry ? flashcardKey(entry) : null;
-    if (!dialog.open) {
-      dialog.showModal();
-      el("close").focus();
-    }
+    view.hidden = false;
     refresh();
   }
   launch.disabled = false;
-  launch.addEventListener("click", () => open());
+  if (bindLaunch) launch.addEventListener("click", () => open());
   wordLaunch.addEventListener("click", () => {
-    if (selected) open(selected);
+    if (selected) {
+      if (onNavigate) onNavigate(selected);
+      else open(selected);
+    }
   });
-  el("close").addEventListener("click", () => dialog.close());
-  dialog.addEventListener("close", () => {
+  function close({ notify = false } = {}) {
     generation++;
-  });
+    view.hidden = true;
+    if (notify) onClose?.();
+  }
+  el("close").addEventListener("click", () => close({ notify: true }));
   el("refresh").addEventListener("click", refresh);
   el("back").addEventListener("click", () => {
     detailKey = null;
@@ -206,6 +211,8 @@ export function initWordStats({
     if (!document.hidden) refresh();
   });
   return {
+    open,
+    close,
     setSelected(entry) {
       selected = entry;
       wordLaunch.disabled = !entry;
