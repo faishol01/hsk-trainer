@@ -533,6 +533,18 @@ export async function initCloudSync(entries) {
   }
   const controller = {
     signedIn: () => Boolean(user),
+    async stats() {
+      if (!user) throw new Error("Account changed; reopen stats");
+      const account = { uid: user.uid, email: user.email || null };
+      const documents = await cache.list(account.uid);
+      if (user?.uid !== account.uid)
+        throw new Error("Account changed while reading stats");
+      return {
+        account,
+        quiz: [...aggregate("q", documents, vocabulary).values()],
+        flashcards: [...aggregate("f", documents, vocabulary).values()],
+      };
+    },
     async flashcards() {
       if (!user) throw new Error("Account changed; reopen flashcards");
       return [...(await cache.records(user.uid, "f")).values()];
@@ -549,6 +561,7 @@ export async function initCloudSync(entries) {
         mode,
       );
       if (user?.uid === uid) {
+        window.dispatchEvent(new CustomEvent("hsk-progress-saved"));
         status("Progress saved on this device; cloud sync is pending.");
         schedule();
       }

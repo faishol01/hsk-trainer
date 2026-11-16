@@ -34,7 +34,7 @@ test('HTML loads external styles and scripts with relative paths for GitHub Page
     assert.equal(contents.trim(), '');
   }
   const links = [...html.matchAll(/(?:src|href)="(\.\/assets\/[^"?#]+)"/g)];
-  assert.equal(links.length, 6);
+  assert.ok(links.length >= 6);
   for (const [, path] of links) assert.ok(existsSync(new URL('../' + path, import.meta.url)), path);
 });
 

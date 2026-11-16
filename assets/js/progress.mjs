@@ -1,3 +1,4 @@
+import { readGuest } from "./cloud-sync.mjs";
 import { flashcardKey, updateFlashcardProgress } from "./flashcard-model.mjs";
 
 export function createFlashcardStore(
@@ -71,7 +72,10 @@ export function createFlashcardStore(
         updated = updateFlashcardProgress(entry, request.result, remembered);
         store.put(updated);
       };
-      tx.oncomplete = () => resolve(updated);
+      tx.oncomplete = () => {
+        notifyStats();
+        resolve(updated);
+      };
       tx.onerror = tx.onabort = () =>
         reject(tx.error || new Error("Could not save flashcards"));
     });
@@ -142,7 +146,10 @@ export function createWordProgressStore(
         updated = old;
         store.put(old);
       };
-      tx.oncomplete = () => resolve(updated);
+      tx.oncomplete = () => {
+        notifyStats();
+        resolve(updated);
+      };
       tx.onerror = () =>
         reject(tx.error || new Error("Could not save progress"));
       tx.onabort = () =>
@@ -150,4 +157,25 @@ export function createWordProgressStore(
     });
   }
   return { open, record };
+}
+
+// Read a consistent source: account cache when signed in, original local stores otherwise.
+export async function readProgressSnapshot(
+  indexedDBApi,
+  cloudReady = Promise.resolve(null),
+) {
+  const cloud = await cloudReady;
+  if (cloud?.signedIn()) return cloud.stats();
+  const [quiz, flashcards] = await Promise.all([
+    readGuest(indexedDBApi, "hsk-word-quiz", "wordProgress"),
+    readGuest(indexedDBApi, "hsk-word-flashcards", "cardProgress"),
+  ]);
+  if (cloud?.signedIn())
+    throw new Error("Account changed while reading progress");
+  return { account: null, quiz, flashcards };
+}
+function notifyStats() {
+  if (typeof window !== "undefined" && typeof CustomEvent === "function") {
+    window.dispatchEvent(new CustomEvent("hsk-progress-saved"));
+  }
 }
