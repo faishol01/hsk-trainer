@@ -153,14 +153,31 @@ export function nextPacked(
     return row;
   }
   const row = validPacked(kind, own) ? own.slice() : Array(7).fill(0);
-  const streak = correct ? (combined?.streak || 0) + 1 : 0;
-  const days = correct ? [1, 3, 7, 14, 30][Math.min(streak - 1, 4)] : 0;
-  row[correct ? 0 : 1]++;
+  const isCorrect =
+    typeof correct === "number" ? correct >= 3 : Boolean(correct);
+  const streak = isCorrect ? (combined?.streak || 0) + 1 : 0;
+  let days = 0;
+  if (isCorrect) {
+    if (streak === 1) days = 1;
+    else if (streak === 2) days = 6;
+    else {
+      const prev =
+        combined?.intervalDays && combined.intervalDays >= 1
+          ? combined.intervalDays
+          : 6;
+      const ef =
+        typeof combined?.easeFactor === "number" && combined.easeFactor >= 1.3
+          ? combined.easeFactor
+          : 2.5;
+      days = Math.round(prev * ef);
+    }
+  }
+  row[isCorrect ? 0 : 1]++;
   row[2] = Math.max(now, row[2] + 1, (combined?.lastReviewedAt || 0) + 1);
   row[3] = streak;
   row[4] = days;
-  row[5] = row[2] + (correct ? days * 86400000 : 300000);
-  row[6] = correct ? 1 : 0;
+  row[5] = row[2] + (isCorrect ? days * 86400000 : 300000);
+  row[6] = isCorrect ? 1 : 0;
   return row;
 }
 

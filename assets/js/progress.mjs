@@ -59,7 +59,7 @@ export function createFlashcardStore(
         reject(tx.error || new Error("Could not load flashcards"));
     });
   }
-  async function record(entry, remembered) {
+  async function record(entry, remembered, options = {}) {
     const cloud = await cloudReady;
     if (cloud?.signedIn()) return cloud.record("f", entry, remembered);
     const db = await open();
@@ -69,7 +69,13 @@ export function createFlashcardStore(
       const request = store.get(flashcardKey(entry));
       let updated;
       request.onsuccess = () => {
-        updated = updateFlashcardProgress(entry, request.result, remembered);
+        updated = updateFlashcardProgress(
+          entry,
+          request.result,
+          remembered,
+          Date.now(),
+          options,
+        );
         store.put(updated);
       };
       tx.oncomplete = () => {
@@ -112,7 +118,7 @@ export function createWordProgressStore(
       });
     return dbPromise;
   }
-  async function record(entry, mode, correct) {
+  async function record(entry, mode, correct, quizStats = {}) {
     const cloud = await cloudReady;
     if (cloud?.signedIn()) return cloud.record("q", entry, correct, mode);
     const db = await open();
@@ -143,6 +149,8 @@ export function createWordProgressStore(
         old.byMode[mode] = by;
         old.lastResult = correct ? "correct" : "incorrect";
         old.lastAnswered = new Date().toISOString();
+        if (quizStats.qScore != null) old.lastQScore = quizStats.qScore;
+        if (quizStats.time != null) old.lastTime = quizStats.time;
         updated = old;
         store.put(old);
       };

@@ -54,7 +54,7 @@ test('flashcard totals add across devices and the latest schedule wins', () => {
   const b = nextPacked('f', null, {streak: 1}, true, null, 2000);
   const combined = aggregate('f', [document('A', 'f', a), document('B', 'f', b)], vocabulary).get(key);
   assert.equal(combined.reviews, 2); assert.equal(combined.remembered, 2);
-  assert.equal(combined.streak, 2); assert.equal(combined.intervalDays, 3);
+  assert.equal(combined.streak, 2); assert.equal(combined.intervalDays, 6);
   const lapse = nextPacked('f', b, combined, false, null, 3000);
   assert.equal(lapse[3], 0); assert.equal(lapse[5], 303000);
   const reset = nextPacked('f', lapse, {streak: 0}, true, null, 4000);

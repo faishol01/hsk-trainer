@@ -428,8 +428,82 @@
           <button id="quiz-close" type="button">← Back to home</button>
         </div>
         <div id="quiz-setup">
-          <label for="quiz-mode">Quiz mode</label
-          ><select id="quiz-mode">
+          <fieldset class="quiz-modes">
+            <div class="quiz-section-header">
+              <legend>Quiz modes</legend>
+              <div class="quiz-mode-actions">
+                <button type="button" id="quiz-mode-all" class="quiz-mode-btn">
+                  Select all
+                </button>
+                <button type="button" id="quiz-mode-clear" class="quiz-mode-btn">
+                  Clear all
+                </button>
+              </div>
+            </div>
+            <div class="quiz-modes-grid">
+              <label class="quiz-mode-card">
+                <input
+                  type="checkbox"
+                  class="quiz-mode-option"
+                  value="translation"
+                  checked
+                />
+                <span class="quiz-mode-badge" aria-hidden="true">汉 → EN</span>
+                <span class="quiz-mode-info">
+                  <span class="quiz-mode-title">Character → translation</span>
+                  <span class="quiz-mode-desc"
+                    >See Hanzi, pick English meaning</span
+                  >
+                </span>
+              </label>
+              <label class="quiz-mode-card">
+                <input
+                  type="checkbox"
+                  class="quiz-mode-option"
+                  value="character"
+                  checked
+                />
+                <span class="quiz-mode-badge" aria-hidden="true">EN → 汉</span>
+                <span class="quiz-mode-info">
+                  <span class="quiz-mode-title">Translation → character</span>
+                  <span class="quiz-mode-desc"
+                    >See English, pick Hanzi characters</span
+                  >
+                </span>
+              </label>
+              <label class="quiz-mode-card">
+                <input
+                  type="checkbox"
+                  class="quiz-mode-option"
+                  value="pinyin"
+                  checked
+                />
+                <span class="quiz-mode-badge" aria-hidden="true">汉 → PĪN</span>
+                <span class="quiz-mode-info">
+                  <span class="quiz-mode-title">Character → pinyin</span>
+                  <span class="quiz-mode-desc"
+                    >See Hanzi, pick pinyin with tones</span
+                  >
+                </span>
+              </label>
+              <label class="quiz-mode-card">
+                <input
+                  type="checkbox"
+                  class="quiz-mode-option"
+                  value="sentence"
+                  checked
+                />
+                <span class="quiz-mode-badge" aria-hidden="true">句 BLANK</span>
+                <span class="quiz-mode-info">
+                  <span class="quiz-mode-title">Fill in the sentence</span>
+                  <span class="quiz-mode-desc"
+                    >Complete context sentence blanks</span
+                  >
+                </span>
+              </label>
+            </div>
+          </fieldset>
+          <select id="quiz-mode" hidden aria-hidden="true" tabindex="-1">
             <option value="translation">Character → translation</option>
             <option value="character">Translation → character</option>
             <option value="pinyin">Character → pinyin with tones</option>
@@ -748,9 +822,9 @@
             Start review
           </button>
           <p class="flashcard-help">
-            Remembered cards return after 1, 3, 7, 14, then 30 days. Review
-            again puts a card back in this session and makes it due in 5
-            minutes.
+            Cards use SM-2 spaced repetition (SuperMemo / Anki). Due cards are
+            prioritized for review. Review again puts a card back in this
+            session and makes it due in 5 minutes.
           </p>
         </div>
         <div id="flashcard-review" hidden>
@@ -767,10 +841,27 @@
               tabindex="-1"
             ></h3>
             <div id="flashcard-answer" class="flashcard-answer" hidden>
+              <div class="flashcard-pronunciation">
+                <p
+                  id="flashcard-pinyin"
+                  class="flashcard-pinyin"
+                  lang="zh-Latn"
+                ></p>
+                <button
+                  id="flashcard-speak"
+                  class="flashcard-speak"
+                  type="button"
+                  aria-label="Speak word"
+                  title="Speak word"
+                >
+                  🔊
+                </button>
+              </div>
               <p
-                id="flashcard-pinyin"
-                class="flashcard-pinyin"
-                lang="zh-Latn"
+                id="flashcard-speech"
+                class="flashcard-speech"
+                role="status"
+                aria-live="polite"
               ></p>
               <p id="flashcard-meaning" class="flashcard-meaning"></p>
               <p id="flashcard-pos" class="flashcard-pos"></p>
@@ -791,12 +882,16 @@
           <div id="flashcard-ratings" class="flashcard-actions" hidden>
             <button id="flashcard-again" class="flashcard-again" type="button">
               Review again</button
+            ><button id="flashcard-hard" class="flashcard-hard" type="button">
+              Hard</button
             ><button
               id="flashcard-remembered"
               class="flashcard-primary"
               type="button"
             >
-              Remembered
+              Remembered</button
+            ><button id="flashcard-easy" class="flashcard-easy" type="button">
+              Easy
             </button>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { esc } from "./utils.mjs";
-import { createWordProgressStore } from "./progress.mjs";
+import { createWordProgressStore, createFlashcardStore } from "./progress.mjs";
+import { quizToQ } from "./flashcard-model.mjs";
 
 export function makeQuizEngine(data, neighborSets) {
   const readings = new Map();
@@ -90,13 +91,18 @@ export function makeQuizEngine(data, neighborSets) {
         )
         .map((j) => ({ j, s: score(id, j, mode) }))
         .sort((a, b) => b.s - a.s);
-      let options = [{ id, text: correct, correct: true }];
+      let options = [{ id, text: correct, correct: true, entry: data[id] }];
       for (const item of distractors) {
         let value = answer(data[item.j], mode),
           key = value.toLocaleLowerCase();
         if (!seen.has(key)) {
           seen.add(key);
-          options.push({ id: item.j, text: value, correct: false });
+          options.push({
+            id: item.j,
+            text: value,
+            correct: false,
+            entry: data[item.j],
+          });
           if (options.length === 4) break;
         }
       }
@@ -116,9 +122,11 @@ export function makeQuizEngine(data, neighborSets) {
 
 export function makeSentenceQuiz(data, neighborSets, sentenceData) {
   const readingCounts = new Map();
+  const wordsByChar = new Map();
   data.forEach((d) => {
     if (!readingCounts.has(d[0])) readingCounts.set(d[0], new Set());
     readingCounts.get(d[0]).add(d[1].toLowerCase().trim());
+    if (!wordsByChar.has(d[0])) wordsByChar.set(d[0], d);
   });
   const choose = (a) => a[Math.floor(Math.random() * a.length)];
   const shuffle = (a) => {
@@ -265,7 +273,17 @@ export function makeSentenceQuiz(data, neighborSets, sentenceData) {
           sentence: row,
           pinyinHint: pinyinHint(row[1], entries),
           options: shuffle(
-            variants.map((v, i) => ({ text: v.join(" / "), correct: i === 0 })),
+            variants.map((v, i) => {
+              const matched = v
+                .map((w) => wordsByChar.get(w))
+                .filter(Boolean);
+              return {
+                text: v.join(" / "),
+                correct: i === 0,
+                entry: matched[0] || null,
+                entries: matched,
+              };
+            }),
           ),
         };
       }
@@ -273,6 +291,33 @@ export function makeSentenceQuiz(data, neighborSets, sentenceData) {
     return null;
   }
   return { question, pinyinHint };
+}
+
+export function optionDetailHTML(option, mode) {
+  const entry = option?.entry;
+  if (!entry) return "";
+  const [word, pinyin, , meaning] = entry;
+  if (mode === "translation") {
+    return `<span class="quiz-option-hanzi" lang="zh-Hans">${esc(word)}</span> <span class="quiz-option-pinyin" lang="zh-Latn">${esc(pinyin)}</span>`;
+  }
+  if (mode === "character") {
+    return `<span class="quiz-option-pinyin" lang="zh-Latn">${esc(pinyin)}</span> · <span class="quiz-option-meaning">${esc(meaning)}</span>`;
+  }
+  if (mode === "pinyin") {
+    return `<span class="quiz-option-hanzi" lang="zh-Hans">${esc(word)}</span> · <span class="quiz-option-meaning">${esc(meaning)}</span>`;
+  }
+  if (mode === "sentence") {
+    if (option.entries?.length > 1) {
+      return option.entries
+        .map(
+          (e) =>
+            `<span class="quiz-option-hanzi" lang="zh-Hans">${esc(e[0])}</span> (<span class="quiz-option-pinyin" lang="zh-Latn">${esc(e[1])}</span> · ${esc(e[3])})`,
+        )
+        .join(" / ");
+    }
+    return `<span class="quiz-option-pinyin" lang="zh-Latn">${esc(pinyin)}</span> · <span class="quiz-option-meaning">${esc(meaning)}</span>`;
+  }
+  return `<span class="quiz-option-hanzi" lang="zh-Hans">${esc(word)}</span> · <span class="quiz-option-pinyin" lang="zh-Latn">${esc(pinyin)}</span> · ${esc(meaning)}`;
 }
 
 export function initQuiz({
@@ -298,10 +343,50 @@ export function initQuiz({
     quizDbNote = document.querySelector("#quiz-db-note"),
     quizWordProgress = document.querySelector("#quiz-word-progress");
   const progressStore = createWordProgressStore(window.indexedDB, cloudReady);
+  const flashcardStore = createFlashcardStore(window.indexedDB, cloudReady);
   let quizCurrent = null,
     quizLast = -1,
     quizCorrect = 0,
-    quizTotal = 0;
+    quizTotal = 0,
+    questionStartTime = Date.now(),
+    hintUsed = false;
+
+  function getSelectedModes() {
+    const checked = [
+      ...document.querySelectorAll(".quiz-mode-option:checked"),
+    ].map((el) => el.value);
+    if (checked.length > 0) return checked;
+    if (quizMode?.value) {
+      return quizMode.value === "mix"
+        ? ["translation", "character", "pinyin", "sentence"]
+        : [quizMode.value];
+    }
+    return ["translation"];
+  }
+
+  function updateModeSelection() {
+    const checked = [
+      ...document.querySelectorAll(".quiz-mode-option:checked"),
+    ].map((el) => el.value);
+    if (quizMode) {
+      quizMode.value =
+        checked.length === 1 ? checked[0] : checked.length > 1 ? "mix" : "";
+    }
+    document.querySelectorAll(".quiz-mode-card").forEach((card) => {
+      const input = card.querySelector?.(".quiz-mode-option");
+      if (input?.checked) card.classList?.add?.("checked");
+      else card.classList?.remove?.("checked");
+    });
+  }
+
+  function updateLevelSelection() {
+    document.querySelectorAll(".quiz-levels label").forEach((label) => {
+      const input = label.querySelector?.(".quiz-level");
+      if (input?.checked) label.classList?.add?.("checked");
+      else label.classList?.remove?.("checked");
+    });
+  }
+
   function quizNextQuestion() {
     let levels = new Set(
       [...document.querySelectorAll(".quiz-level:checked")].map(
@@ -309,11 +394,13 @@ export function initQuiz({
       ),
     );
     let eligible = data.map((_, i) => i).filter((i) => levels.has(data[i][4]));
-    let mode = quizMode.value;
-    if (mode === "mix")
-      mode = ["translation", "character", "pinyin", "sentence"][
-        Math.floor(Math.random() * 4)
-      ];
+    const modes = getSelectedModes();
+    if (!modes.length) {
+      document.querySelector("#quiz-setup-error").textContent =
+        "Choose at least one quiz mode to continue.";
+      return false;
+    }
+    const mode = modes[Math.floor(Math.random() * modes.length)];
     let question =
       mode === "sentence"
         ? sentenceQuiz.question(eligible, quizLast)
@@ -328,6 +415,8 @@ export function initQuiz({
     quizCurrent = question;
     quizLast = question.id;
     quizWordProgress.textContent = "";
+    questionStartTime = Date.now();
+    hintUsed = false;
     let label =
       question.mode === "sentence"
         ? "Choose the missing word or words"
@@ -340,7 +429,12 @@ export function initQuiz({
       question.mode === "sentence"
         ? `<div class="quiz-hints"><button type="button" data-hint="pinyin">Show pinyin</button><button type="button" data-hint="translation">Show translation</button></div><p id="quiz-hint-pinyin" class="quiz-meta" hidden>${esc(question.pinyinHint)}</p><p id="quiz-hint-translation" class="quiz-meta" hidden>${esc(question.sentence[2])}</p>`
         : "";
-    quizBody.innerHTML = `<p class="quiz-prompt-label">${label}</p><div class="quiz-prompt">${esc(question.prompt)}</div>${hints}<div class="quiz-options">${question.options.map((o, i) => `<button type="button" class="quiz-option" data-option="${i}">${esc(o.text)}</button>`).join("")}</div><p class="quiz-feedback" aria-live="polite"></p>`;
+    quizBody.innerHTML = `<p class="quiz-prompt-label">${label}</p><div class="quiz-prompt">${esc(question.prompt)}</div>${hints}<div class="quiz-options">${question.options
+      .map((o, i) => {
+        const detail = optionDetailHTML(o, question.mode);
+        return `<button type="button" class="quiz-option" data-option="${i}"><span class="quiz-option-text">${esc(o.text)}</span>${detail ? `<span class="quiz-option-detail" hidden style="display: none;">${detail}</span>` : ""}</button>`;
+      })
+      .join("")}</div><p class="quiz-feedback" aria-live="polite"></p>`;
     return true;
   }
   window.addEventListener("hsk-progress-changed", (e) => {
@@ -354,7 +448,9 @@ export function initQuiz({
     quizCorrect = quizTotal = 0;
     quizScore.textContent = "Score: 0 / 0";
     document.querySelector("#quiz-setup-error").textContent = "";
-    quizMode.focus();
+    updateModeSelection();
+    updateLevelSelection();
+    document.querySelector(".quiz-mode-option")?.focus();
   }
   function openQuiz() {
     quizOverlay.hidden = false;
@@ -393,9 +489,43 @@ export function initQuiz({
   document
     .querySelector("#quiz-settings")
     .addEventListener("click", showQuizSetup);
+  document.querySelectorAll(".quiz-mode-option").forEach((input) => {
+    input.addEventListener("change", updateModeSelection);
+  });
+  document.querySelectorAll(".quiz-level").forEach((input) => {
+    input.addEventListener("change", updateLevelSelection);
+  });
+  document.querySelector("#quiz-mode-all")?.addEventListener("click", () => {
+    document.querySelectorAll(".quiz-mode-option").forEach((input) => {
+      input.checked = true;
+    });
+    updateModeSelection();
+  });
+  document.querySelector("#quiz-mode-clear")?.addEventListener("click", () => {
+    document.querySelectorAll(".quiz-mode-option").forEach((input) => {
+      input.checked = false;
+    });
+    updateModeSelection();
+  });
   document.querySelector("#quiz-start").addEventListener("click", async () => {
     let startButton = document.querySelector("#quiz-start");
-    if (quizMode.value === "sentence" || quizMode.value === "mix") {
+    const modes = getSelectedModes();
+    if (!modes.length) {
+      document.querySelector("#quiz-setup-error").textContent =
+        "Choose at least one quiz mode to begin.";
+      return;
+    }
+    const levels = new Set(
+      [...document.querySelectorAll(".quiz-level:checked")].map(
+        (el) => el.value,
+      ),
+    );
+    if (!levels.size) {
+      document.querySelector("#quiz-setup-error").textContent =
+        "Choose at least one word level to begin.";
+      return;
+    }
+    if (modes.includes("sentence")) {
       startButton.disabled = true;
       document.querySelector("#quiz-setup-error").textContent =
         "Loading sentences…";
@@ -437,30 +567,55 @@ export function initQuiz({
       let item = question.options[+el.dataset.option];
       el.disabled = true;
       if (item.correct) el.classList.add("correct");
+      el.classList?.add?.("revealed");
+      const detailEl = el.querySelector?.(".quiz-option-detail");
+      if (detailEl) {
+        detailEl.removeAttribute?.("hidden");
+        if (detailEl.style) detailEl.style.display = "";
+      }
     });
     if (!chosen.correct) button.classList.add("wrong");
+    const responseTime = Math.max(0, (Date.now() - questionStartTime) / 1000);
+    const qQuiz = quizToQ({
+      correct: chosen.correct,
+      time: responseTime,
+      usedHint: hintUsed,
+      type: "multipleChoice",
+    });
     let d = question.entry;
+    const timeFormatted = `${responseTime.toFixed(1)}s`;
     quizBody.querySelector(".quiz-feedback").textContent =
       (chosen.correct ? "Correct. " : "Not quite. ") +
       (question.mode === "sentence"
         ? question.sentence[0]
-        : d[0] + " · " + d[1] + " · " + d[3]);
+        : d[0] + " · " + d[1] + " · " + d[3]) +
+      ` (Score: ${qQuiz}/4 · ${timeFormatted}${hintUsed ? " · hint used" : ""})`;
     quizNext.hidden = false;
     quizNext.focus();
     quizWordProgress.textContent = "Saving word progress…";
-    Promise.all(
-      (question.entries || [d]).map((entry) =>
-        progressStore.record(entry, question.mode, chosen.correct),
+    const entries = question.entries || [d];
+    Promise.all([
+      ...entries.map((entry) =>
+        progressStore.record(entry, question.mode, chosen.correct, {
+          qScore: qQuiz,
+          time: responseTime,
+          usedHint: hintUsed,
+        }),
       ),
-    )
+      ...entries.map((entry) =>
+        flashcardStore.record(entry, qQuiz, { isQuiz: true }),
+      ),
+    ])
       .then((saved) => {
-        if (quizCurrent === question)
-          quizWordProgress.textContent = saved
+        if (quizCurrent === question) {
+          const quizEntries = saved.slice(0, entries.length);
+          quizWordProgress.textContent = quizEntries
             .map(
               (v) =>
                 `${v.word}: ${v.correct} correct · ${v.incorrect} incorrect`,
             )
             .join(" | ");
+        }
         quizDbNote.textContent =
           "Progress is saved on this device. Check Cloud sync for upload status.";
       })

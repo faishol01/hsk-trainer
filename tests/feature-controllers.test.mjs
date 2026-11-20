@@ -169,6 +169,12 @@ test("Home routes open real feature pages, start Quiz without sentence resources
     );
     assert.equal(node("page-title").textContent, "Flashcards");
     assert.equal(node("flashcard-start").disabled, true);
+    assert.ok(node("flashcard-again"));
+    assert.ok(node("flashcard-hard"));
+    assert.ok(node("flashcard-remembered"));
+    assert.ok(node("flashcard-easy"));
+    assert.ok(node("flashcard-speak"));
+    assert.ok(node("flashcard-speech"));
     banner();
     location.hash = "#home";
     await waitFor(() => shell.active() === "home");
