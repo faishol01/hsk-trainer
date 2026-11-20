@@ -1,5 +1,10 @@
-import { flashcardKey, flashcardCandidates } from "./flashcard-model.mjs";
+import {
+  flashcardKey,
+  flashcardCandidates,
+  prioritizeFlashcards,
+} from "./flashcard-model.mjs";
 import { createFlashcardStore } from "./progress.mjs";
+import { createSpeechPlayer } from "./audio.mjs";
 
 export function initFlashcards(
   entries,
@@ -13,6 +18,7 @@ export function initFlashcards(
     review = el("review"),
     summary = el("summary");
   const store = createFlashcardStore(window.indexedDB, cloudReady);
+  const speech = createSpeechPlayer();
   let progress = new Map(),
     queue = [],
     current = null;
@@ -97,6 +103,7 @@ export function initFlashcards(
   function close({ force = false, notify = true } = {}) {
     if (saving && !force) return;
     if (force) setSaving(false);
+    speech.stopSpeech();
     generation++;
     overlay.hidden = true;
     document.body.classList.remove("flashcard-active");
@@ -107,6 +114,7 @@ export function initFlashcards(
     window.dispatchEvent(new Event("resize"));
   }
   function finish(completed) {
+    speech.stopSpeech();
     setup.hidden = true;
     review.hidden = true;
     summary.hidden = false;
@@ -119,6 +127,9 @@ export function initFlashcards(
     el("another").focus();
   }
   function showCard() {
+    speech.stopSpeech();
+    const speechStatus = el("speech");
+    if (speechStatus) speechStatus.textContent = "";
     current = queue[0];
     if (!current) {
       finish(true);
@@ -153,29 +164,34 @@ export function initFlashcards(
   }
   function setSaving(next) {
     saving = next;
-    ["again", "remembered", "close", "end"].forEach((id) => {
-      el(id).disabled = next;
-    });
+    ["again", "hard", "remembered", "easy", "speak", "close", "end"].forEach(
+      (id) => {
+        const button = el(id);
+        if (button) button.disabled = next;
+      },
+    );
     review.setAttribute("aria-busy", String(next));
   }
-  async function rate(remembered) {
+  async function rate(grade) {
     if (!current || !revealed || saving) return;
+    const isRemembered =
+      typeof grade === "number" ? grade >= 3 : Boolean(grade);
     const entry = current,
       token = generation;
     setSaving(true);
     storageStatus("Saving flashcard progress...");
     try {
-      const updated = await store.record(entry, remembered);
+      const updated = await store.record(entry, grade);
       if (token !== generation) return;
       progress.set(updated.key, updated);
       attempts++;
       queue.shift();
-      if (remembered) rememberedCount++;
+      if (isRemembered) rememberedCount++;
       else queue.push(entry);
       setSaving(false);
       storageStatus(
         "Progress saved. " +
-          (remembered
+          (isRemembered
             ? `Next review in ${updated.intervalDays} ${updated.intervalDays === 1 ? "day" : "days"}.`
             : "This card will appear again in this session."),
       );
@@ -220,16 +236,16 @@ export function initFlashcards(
   el("scope").addEventListener("change", updateSetup);
   el("start").addEventListener("click", () => {
     if (!ready) return;
-    queue = flashcardCandidates(
+    const candidates = flashcardCandidates(
       entries,
       progress,
       selectedLevels(),
       el("scope").value,
     );
-    for (let i = queue.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [queue[i], queue[j]] = [queue[j], queue[i]];
-    }
+    // Prioritize due cards first (sorted by overdueness), with new cards shuffled
+    queue = prioritizeFlashcards(candidates, progress, Date.now(), {
+      shuffleNew: true,
+    });
     const limit = el("limit").value;
     if (limit !== "all") queue = queue.slice(0, Number(limit));
     if (!queue.length) {
@@ -243,17 +259,48 @@ export function initFlashcards(
     showCard();
   });
   el("reveal").addEventListener("click", reveal);
-  el("again").addEventListener("click", () => rate(false));
-  el("remembered").addEventListener("click", () => rate(true));
+  el("speak")?.addEventListener("click", () => {
+    if (current?.[0]) speech.playSpeech(current[0], el("speech"));
+  });
+  el("again").addEventListener("click", () => rate(1));
+  el("hard")?.addEventListener("click", () => rate(3));
+  el("remembered").addEventListener("click", () => rate(4));
+  el("easy")?.addEventListener("click", () => rate(5));
   el("end").addEventListener("click", () => {
     if (!saving) finish(false);
   });
   el("another").addEventListener("click", showSetup);
   document.addEventListener("keydown", (event) => {
-    if (!overlay.hidden && event.key === "Escape") {
+    if (overlay.hidden) return;
+    if (event.key === "Escape") {
       event.preventDefault();
       close();
+      return;
+    }
+    if (review.hidden || saving) return;
+    if (!revealed) {
+      if (event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        reveal();
+      }
+    } else {
+      if (event.key === "s" || event.key === "S") {
+        event.preventDefault();
+        if (current?.[0]) speech.playSpeech(current[0], el("speech"));
+      } else if (event.key === "1") {
+        event.preventDefault();
+        rate(1);
+      } else if (event.key === "2") {
+        event.preventDefault();
+        rate(3);
+      } else if (event.key === "3" || event.key === " " || event.key === "Enter") {
+        event.preventDefault();
+        rate(4);
+      } else if (event.key === "4") {
+        event.preventDefault();
+        rate(5);
+      }
     }
   });
-  return { open, close };
+  return { open, close, stopSpeech: () => speech.stopSpeech() };
 }

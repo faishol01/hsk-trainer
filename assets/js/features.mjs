@@ -107,6 +107,7 @@ export function ensureFeatures({ onHome, onStatistics } = {}) {
       return quiz;
     },
     stopSpeech() {
+      flashcards?.stopSpeech?.();
       sentences?.then((source) => source.speech.stopSpeech()).catch(() => {});
     },
   };
