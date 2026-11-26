@@ -381,3 +381,91 @@ test("view mode defaults to paragraph view and switches to paginated sentence br
 
 
 
+
+test("story theme pool has 30 unique themes and shuffles distinct subsets", async () => {
+  const { storyThemes, pickRandomThemes } = await import("../data/story-themes.mjs");
+  assert.equal(storyThemes.length, 30);
+  assert.equal(new Set(storyThemes.map((t) => t.value)).size, 30);
+  for (const t of storyThemes) {
+    assert.ok(t.emoji && t.label && t.value);
+  }
+  const picked = pickRandomThemes(5);
+  assert.equal(picked.length, 5);
+  assert.equal(new Set(picked.map((t) => t.value)).size, 5);
+  assert.ok(picked.every((t) => storyThemes.includes(t)));
+});
+
+test("loading screen hides setup/reader and is dismissed when switching screens", async () => {
+  const { initStoryView } = await import("../assets/js/story.mjs");
+  const elements = {};
+  const mockDoc = {
+    getElementById: (id) => {
+      if (!elements[id]) {
+        elements[id] = {
+          id,
+          hidden: false,
+          textContent: "",
+          setAttribute(k, v) { this[k] = v; },
+          addEventListener() {},
+          querySelectorAll: () => [],
+          focus() {},
+          scrollIntoView() {},
+        };
+      }
+      return elements[id];
+    },
+    querySelectorAll: () => [],
+    querySelector: () => null,
+    addEventListener: () => {},
+  };
+  const savedDoc = globalThis.document;
+  try {
+    globalThis.document = mockDoc;
+    const controller = initStoryView();
+    controller.showLoadingScreen({ levels: ["HSK 2"], targetLength: "300 characters", theme: "Zoo" });
+    assert.equal(elements["story-loading-page"].hidden, false);
+    assert.equal(elements["story-setup-page"].hidden, true);
+    assert.equal(elements["story-reader-page"].hidden, true);
+    assert.match(elements["story-loading-spec"].textContent, /HSK 2 · 300 characters · Theme: Zoo/);
+
+    controller.showReaderScreen();
+    assert.equal(elements["story-loading-page"].hidden, true);
+    assert.equal(elements["story-reader-page"].hidden, false);
+
+    controller.showLoadingScreen();
+    controller.showSetupScreen();
+    assert.equal(elements["story-loading-page"].hidden, true);
+    assert.equal(elements["story-setup-page"].hidden, false);
+  } finally {
+    globalThis.document = savedDoc;
+  }
+});
+
+test("validateStoryOutput keeps aligned option pinyin/English and drops misaligned ones", async () => {
+  const { validateStoryOutput, generateCuratedStory } = await import("../assets/js/story-ai.mjs");
+  const data = validateStoryOutput({
+    title: "测试",
+    paragraphs: ["你好。"],
+    questions: [
+      {
+        question: "Q1?",
+        options: ["一", "二", "三"],
+        optionsPinyin: ["yī", "èr", "sān"],
+        optionsEnglish: ["one", "two", "three"],
+        correctIndex: 1,
+      },
+      { question: "Q2?", options: ["一", "二", "三"], optionsPinyin: ["yī"], correctIndex: 0 },
+    ],
+  });
+  assert.deepEqual(data.questions[0].optionsPinyin, ["yī", "èr", "sān"]);
+  assert.deepEqual(data.questions[0].optionsEnglish, ["one", "two", "three"]);
+  assert.deepEqual(data.questions[1].optionsPinyin, []);
+  assert.deepEqual(data.questions[1].optionsEnglish, []);
+
+  for (const level of ["HSK 1", "HSK 2"]) {
+    for (const q of generateCuratedStory({ level }).questions) {
+      assert.equal(q.optionsPinyin.length, q.options.length);
+      assert.equal(q.optionsEnglish.length, q.options.length);
+    }
+  }
+});

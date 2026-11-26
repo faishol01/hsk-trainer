@@ -238,7 +238,7 @@ Your task is to write a natural, level-locked Chinese short story that reinforce
 
 ### User Inputs:
 - Target Level: ${norm.name}
-- Target Length: ${targetLength}
+- Target Length: ${targetLength}, minimum length: ${0.95 * parseInt(targetLength)}
 - Story Theme: ${theme.trim() ? theme.trim() : "Relatable everyday Chinese scenario (e.g. food, friends, campus, travel)"}
 
 ### Strict Rules:
@@ -253,13 +253,14 @@ ${grammarReferenceText}
    - Generate between 2 to 5 reading comprehension questions based on the generated story.
    - CRITICAL REQUIREMENT: Each question MUST be in English.
    - CRITICAL REQUIREMENT: Each question MUST have 3 or 4 answer options written in Hanzi (Chinese characters).
+   - For every option, also provide its pinyin (with tone marks) in "optionsPinyin" and its English translation in "optionsEnglish", in the same order as "options" (same array length).
    - Indicate which option is correct (0-based index) and provide a clear explanation in English.
 
 4. Sentence Breakdown Requirement:
    - CRITICAL REQUIREMENT: The "sentences" array MUST contain EVERY SINGLE sentence from the story paragraphs, in exact sequential order from beginning to end. Do not skip or truncate any sentences.
 
 ### Required JSON Output:
-Return ONLY valid, parseable JSON conforming to this exact schema without any codeblock backticks or surrounding text:
+Return ONLY VALID AND PARSEABLE JSON conforming to this exact schema without any codeblock backticks or surrounding text:
 {
   "title": "Story Title in Chinese",
   "pinyinTitle": "Pinyin with tones",
@@ -300,6 +301,18 @@ Return ONLY valid, parseable JSON conforming to this exact schema without any co
         "选项二（Hanzi）",
         "选项三（Hanzi）",
         "选项四（Hanzi）"
+      ],
+      "optionsPinyin": [
+        "xuǎnxiàng yī",
+        "xuǎnxiàng èr",
+        "xuǎnxiàng sān",
+        "xuǎnxiàng sì"
+      ],
+      "optionsEnglish": [
+        "Option one",
+        "Option two",
+        "Option three",
+        "Option four"
       ],
       "correctIndex": 0,
       "explanation": "Explanation in English citing the story."
@@ -357,6 +370,14 @@ export function validateStoryOutput(data) {
       q.correctIndex >= q.options.length
     ) {
       q.correctIndex = 0; // safe fallback
+    }
+    // Optional per-option pinyin / English: keep only if aligned with options
+    for (const key of ["optionsPinyin", "optionsEnglish"]) {
+      const arr = q[key];
+      q[key] =
+        Array.isArray(arr) && arr.length === q.options.length
+          ? arr.map((v) => (typeof v === "string" ? v : ""))
+          : [];
     }
   }
   return data;
@@ -492,18 +513,24 @@ export function generateCuratedStory({ level = "HSK 1", theme = "" } = {}) {
         {
           question: "How did the friends travel to the shopping mall?",
           options: ["走路去", "坐公交车去", "坐地铁去", "骑车去"],
+          optionsPinyin: ["zǒulù qù", "zuò gōngjiāochē qù", "zuò dìtiě qù", "qí chē qù"],
+          optionsEnglish: ["Went on foot", "Went by bus", "Went by subway", "Went by bike"],
           correctIndex: 2,
           explanation: "Sentence 5 states: '我们在车站坐地铁，坐地铁比坐公交车快。'"
         },
         {
           question: "How did the friend read books at the bookstore?",
           options: ["看得很慢", "看得很累", "看得很快", "不想看书"],
+          optionsPinyin: ["kàn de hěn màn", "kàn de hěn lèi", "kàn de hěn kuài", "bù xiǎng kàn shū"],
+          optionsEnglish: ["Read very slowly", "Got tired reading", "Read very fast", "Didn't want to read"],
           correctIndex: 2,
           explanation: "Sentence 8 states: '朋友看书看得很快，他已经看了三本书。'"
         },
         {
           question: "Where did they go after buying books?",
           options: ["回学校", "去饭馆吃午饭", "去机场", "去买衣服"],
+          optionsPinyin: ["huí xuéxiào", "qù fànguǎn chī wǔfàn", "qù jīchǎng", "qù mǎi yīfu"],
+          optionsEnglish: ["Went back to school", "Went to a restaurant for lunch", "Went to the airport", "Went to buy clothes"],
           correctIndex: 1,
           explanation: "Paragraph 3 states: '买完书，我们去商场旁边的饭馆吃午饭。'"
         }
@@ -645,18 +672,24 @@ export function generateCuratedStory({ level = "HSK 1", theme = "" } = {}) {
       {
         question: "What did the friend want to buy at the store?",
         options: ["想买苹果", "想买西瓜", "想买电脑", "想买衣服"],
+        optionsPinyin: ["xiǎng mǎi píngguǒ", "xiǎng mǎi xīguā", "xiǎng mǎi diànnǎo", "xiǎng mǎi yīfu"],
+        optionsEnglish: ["Wanted to buy apples", "Wanted to buy a watermelon", "Wanted to buy a computer", "Wanted to buy clothes"],
         correctIndex: 0,
         explanation: "The story mentions: '朋友想买苹果，我想买茶和牛奶。'"
       },
       {
         question: "Where did they go at noon to have lunch?",
         options: ["去学校", "去饭店", "去医院", "去车站"],
+        optionsPinyin: ["qù xuéxiào", "qù fàndiàn", "qù yīyuàn", "qù chēzhàn"],
+        optionsEnglish: ["Went to school", "Went to a restaurant", "Went to the hospital", "Went to the station"],
         correctIndex: 1,
         explanation: "The story states: '中午，我们去饭店吃午饭。'"
       },
       {
         question: "What pet does the narrator have at home?",
         options: ["小狗", "小鸟", "小猫", "小鱼"],
+        optionsPinyin: ["xiǎo gǒu", "xiǎo niǎo", "xiǎo māo", "xiǎo yú"],
+        optionsEnglish: ["A puppy", "A little bird", "A kitten", "A little fish"],
         correctIndex: 2,
         explanation: "Paragraph 3 states: '我家有一只小猫，小猫很小，很漂亮。'"
       }

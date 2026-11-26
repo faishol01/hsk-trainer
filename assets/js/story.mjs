@@ -1,5 +1,8 @@
 // Story Generator UI controller and interactive comprehension quiz
 import { generateStoryWithAI } from "./story-ai.mjs";
+import { storyThemes, pickRandomThemes } from "../../data/story-themes.mjs";
+
+const PRESET_THEME_COUNT = 5;
 
 export function splitParagraphIntoSentences(p) {
   if (!p || typeof p !== "string") return [];
@@ -61,6 +64,9 @@ export function alignAllSentences(story) {
 export function initStoryView() {
   const setupPage = document.getElementById("story-setup-page");
   const readerPage = document.getElementById("story-reader-page");
+  const loadingPage = document.getElementById("story-loading-page");
+  const loadingSpecEl = document.getElementById("story-loading-spec");
+  const loadingElapsedEl = document.getElementById("story-loading-elapsed");
 
   const form = document.getElementById("story-form");
   const lengthInput = document.getElementById("story-length");
@@ -68,7 +74,9 @@ export function initStoryView() {
   const statusEl = document.getElementById("story-status");
 
   // Preset themes & custom theme input
-  const presetRadios = document.querySelectorAll('input[name="story-theme-preset"]');
+  const presetsContainer = document.getElementById("story-theme-presets");
+  const customChip = document.getElementById("story-theme-custom-chip");
+  const shuffleThemesBtn = document.getElementById("story-theme-shuffle");
   const customThemeBox = document.getElementById("story-custom-theme-box");
   const customThemeInput = document.getElementById("story-custom-theme");
 
@@ -198,14 +206,49 @@ export function initStoryView() {
     }
   }
 
+  let loadingTimer = null;
+
+  function stopLoadingTimer() {
+    if (loadingTimer) {
+      clearInterval(loadingTimer);
+      loadingTimer = null;
+    }
+  }
+
   function showSetupScreen() {
+    stopLoadingTimer();
     if (setupPage) setupPage.hidden = false;
+    if (loadingPage) loadingPage.hidden = true;
     if (readerPage) readerPage.hidden = true;
     document.getElementById("story-title")?.focus();
   }
 
-  function showReaderScreen() {
+  function showLoadingScreen({ levels = [], targetLength = "", theme = "" } = {}) {
     if (setupPage) setupPage.hidden = true;
+    if (readerPage) readerPage.hidden = true;
+    if (loadingPage) loadingPage.hidden = false;
+    if (loadingSpecEl) {
+      const parts = [levels.join(", "), targetLength, theme ? `Theme: ${theme}` : ""];
+      loadingSpecEl.textContent = parts.filter(Boolean).join(" · ");
+    }
+    stopLoadingTimer();
+    const startedAt = Date.now();
+    const tick = () => {
+      if (loadingElapsedEl) {
+        const secs = Math.floor((Date.now() - startedAt) / 1000);
+        loadingElapsedEl.textContent = `${secs}s elapsed`;
+      }
+    };
+    tick();
+    loadingTimer = setInterval(tick, 1000);
+    document.getElementById("story-loading-title")?.focus();
+    loadingPage?.scrollIntoView?.({ behavior: "smooth" });
+  }
+
+  function showReaderScreen() {
+    stopLoadingTimer();
+    if (setupPage) setupPage.hidden = true;
+    if (loadingPage) loadingPage.hidden = true;
     if (readerPage) readerPage.hidden = false;
     storyTitleEl?.focus();
     readerPage?.scrollIntoView({ behavior: "smooth" });
@@ -299,7 +342,14 @@ export function initStoryView() {
         btn.dataset.optIndex = String(optIndex);
 
         const prefix = String.fromCharCode(65 + optIndex);
-        btn.innerHTML = `<span class="opt-prefix">${prefix}.</span> <span class="opt-text">${escapeHtml(optText)}</span>`;
+        const optPinyin = q.optionsPinyin?.[optIndex] || "";
+        const optEnglish = q.optionsEnglish?.[optIndex] || "";
+        btn.innerHTML = `<span class="opt-prefix">${prefix}.</span>
+          <span class="opt-body">
+            <span class="opt-text">${escapeHtml(optText)}</span>
+            ${optPinyin ? `<span class="opt-pinyin" lang="zh-Latn-pinyin" hidden>${escapeHtml(optPinyin)}</span>` : ""}
+            ${optEnglish ? `<span class="opt-english" lang="en" hidden>${escapeHtml(optEnglish)}</span>` : ""}
+          </span>`;
 
         btn.addEventListener("click", () => {
           handleSelectAnswer(qIndex, optIndex, card, q);
@@ -327,6 +377,9 @@ export function initStoryView() {
 
     optionBtns.forEach((btn, idx) => {
       btn.disabled = true;
+      btn.querySelectorAll(".opt-pinyin, .opt-english").forEach((el) => {
+        el.hidden = false;
+      });
       if (idx === q.correctIndex) {
         btn.classList.add("opt-correct");
       } else if (idx === selectedOptIndex && !isCorrect) {
@@ -388,9 +441,45 @@ export function initStoryView() {
       return customThemeInput?.value.trim() || "";
     }
     if (val === "random") {
-      return "";
+      return pickRandomThemes(1, storyThemes)[0]?.value || "";
     }
     return val;
+  }
+
+  function renderThemePresets() {
+    if (!presetsContainer || typeof document.createElement !== "function") return;
+    presetsContainer
+      .querySelectorAll?.(".story-theme-chip[data-shuffled]")
+      ?.forEach((el) => el.remove());
+
+    const checked = document.querySelector('input[name="story-theme-preset"]:checked');
+    if (checked && checked.closest?.("[data-shuffled]")) {
+      const randomRadio = presetsContainer.querySelector?.('input[value="random"]');
+      if (randomRadio) randomRadio.checked = true;
+    }
+
+    for (const theme of pickRandomThemes(PRESET_THEME_COUNT, storyThemes)) {
+      const label = document.createElement("label");
+      label.className = "story-theme-chip";
+      label.dataset.shuffled = "true";
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "story-theme-preset";
+      input.value = theme.value;
+      const span = document.createElement("span");
+      span.textContent = `${theme.emoji} ${theme.label}`;
+      span.title = theme.value;
+      label.append(input, span);
+      if (customChip && customChip.parentNode === presetsContainer) {
+        presetsContainer.insertBefore(label, customChip);
+      } else {
+        presetsContainer.appendChild(label);
+      }
+    }
+    if (customThemeBox) {
+      const current = document.querySelector('input[name="story-theme-preset"]:checked');
+      customThemeBox.hidden = current?.value !== "custom";
+    }
   }
 
   async function handleGenerate(e) {
@@ -402,6 +491,7 @@ export function initStoryView() {
 
     setLoading(true);
     setStatus("Generating level-locked story and comprehension questions with AI...");
+    showLoadingScreen({ levels, targetLength, theme });
 
     try {
       const story = await generateStoryWithAI({
@@ -447,15 +537,19 @@ export function initStoryView() {
       showReaderScreen();
     } catch (err) {
       console.error("Story generation failed:", err);
+      showSetupScreen();
       setStatus("Could not generate story. Please check your connection and try again.", true);
     } finally {
       setLoading(false);
     }
   }
 
-  // Handle Preset selection toggling custom input
-  presetRadios.forEach((radio) => {
-    radio.addEventListener("change", () => {
+  // Handle Preset selection toggling custom input (delegated: chips are re-rendered on shuffle)
+  renderThemePresets();
+  if (presetsContainer) {
+    presetsContainer.addEventListener("change", (e) => {
+      const radio = e.target;
+      if (!radio || radio.name !== "story-theme-preset") return;
       if (customThemeBox) {
         const isCustom = radio.value === "custom";
         customThemeBox.hidden = !isCustom;
@@ -464,7 +558,11 @@ export function initStoryView() {
         }
       }
     });
-  });
+  }
+
+  if (shuffleThemesBtn) {
+    shuffleThemesBtn.addEventListener("click", renderThemePresets);
+  }
 
   if (form) {
     form.addEventListener("submit", handleGenerate);
@@ -530,6 +628,7 @@ export function initStoryView() {
   return {
     generate: handleGenerate,
     showSetupScreen,
+    showLoadingScreen,
     showReaderScreen,
     updateViewMode,
     nextSentence,

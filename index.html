@@ -296,36 +296,20 @@
             <!-- 3. Story Theme Presets + Custom / Random -->
             <fieldset class="story-fieldset">
               <legend class="story-legend">Story theme</legend>
-              <div class="story-theme-presets" role="radiogroup" aria-label="Story theme presets">
+              <div id="story-theme-presets" class="story-theme-presets" role="radiogroup" aria-label="Story theme presets">
                 <label class="story-theme-chip">
                   <input type="radio" name="story-theme-preset" value="random" checked />
                   <span>🎲 Random everyday theme</span>
                 </label>
-                <label class="story-theme-chip">
-                  <input type="radio" name="story-theme-preset" value="Cooking dumplings and Chinese food" />
-                  <span>🥟 Cooking dumplings</span>
-                </label>
-                <label class="story-theme-chip">
-                  <input type="radio" name="story-theme-preset" value="Weekend trip and train travel" />
-                  <span>🚆 Weekend train trip</span>
-                </label>
-                <label class="story-theme-chip">
-                  <input type="radio" name="story-theme-preset" value="Visiting a tea house or coffee shop" />
-                  <span>🍵 Tea house & coffee</span>
-                </label>
-                <label class="story-theme-chip">
-                  <input type="radio" name="story-theme-preset" value="Campus life and making new friends" />
-                  <span>🏫 Campus & new friends</span>
-                </label>
-                <label class="story-theme-chip">
-                  <input type="radio" name="story-theme-preset" value="Shopping for groceries at the supermarket" />
-                  <span>🛒 Supermarket shopping</span>
-                </label>
-                <label class="story-theme-chip">
+                <!-- Shuffled preset chips are rendered here from data/story-themes.mjs -->
+                <label id="story-theme-custom-chip" class="story-theme-chip">
                   <input type="radio" name="story-theme-preset" value="custom" />
                   <span>✏️ Write my own theme</span>
                 </label>
               </div>
+              <button id="story-theme-shuffle" class="story-theme-shuffle-btn" type="button">
+                🔀 Shuffle themes
+              </button>
 
               <div id="story-custom-theme-box" class="story-custom-theme-box" hidden>
                 <label for="story-custom-theme">Your custom theme</label>
@@ -342,6 +326,17 @@
               Generate story
             </button>
           </form>
+        </div>
+
+        <!-- Screen 1.5: Loading Page (shown while the AI generates the story) -->
+        <div id="story-loading-page" class="story-page-view story-loading-page" hidden aria-live="polite" aria-busy="true">
+          <div class="story-loading-spinner" aria-hidden="true"></div>
+          <h2 id="story-loading-title" tabindex="-1">Writing your story…</h2>
+          <p id="story-loading-message" class="story-loading-message">
+            Generating a level-locked story and comprehension questions with AI.
+          </p>
+          <p id="story-loading-spec" class="story-loading-spec"></p>
+          <p id="story-loading-elapsed" class="story-loading-elapsed"></p>
         </div>
 
         <!-- Screen 2: Generated Story Reader & Quiz Page -->
