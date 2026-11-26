@@ -10,7 +10,7 @@
   },
   "recaptchaEnterpriseSiteKey": "6LftcDMuAAAAAN94wgFGS7gdcEhYbLdvudj_3USN",
   "aiConfig": {
-    "model": "gemini-2.0-flash",
+    "model": "gemini-3.8-flash",
     "location": "us-central1",
     "enforceAuth": true
   }
