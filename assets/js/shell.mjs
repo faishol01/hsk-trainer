@@ -7,6 +7,7 @@ export const FEATURES = [
   "quiz",
   "cloud",
   "grammar",
+  "story",
 ];
 export const PAGE_NAMES = {
   home: "HSK Study",
@@ -16,6 +17,7 @@ export const PAGE_NAMES = {
   quiz: "Quiz",
   cloud: "Cloud sync",
   grammar: "Grammar explorer",
+  story: "AI Story generator",
 };
 export function featureFromHash(hash) {
   const value = hash.replace(/^#\/?/, "").toLowerCase();
@@ -32,6 +34,7 @@ export function initFeatureShell() {
       quiz: "quiz-overlay",
       cloud: "cloud-dialog",
       grammar: "grammar-view",
+      story: "story-view",
     }).map(([name, id]) => [name, document.getElementById(id)]),
   );
   const status = document.getElementById("feature-status");
@@ -42,6 +45,7 @@ export function initFeatureShell() {
     commonPromise,
     quiz,
     grammar,
+    storyController,
     pendingStatsEntry = null;
   let explorerStarted = false,
     explorerController,
@@ -144,6 +148,13 @@ export function initFeatureShell() {
         }
         await grammar.activate();
         if (!ready()) return;
+      } else if (feature === "story") {
+        if (!storyController) {
+          const module = await import("./story.mjs");
+          if (token !== generation) return;
+          storyController = module.initStoryView();
+        }
+        if (!ready()) return;
       } else {
         const shared = await ensureCommon();
         if (token !== generation) return;
@@ -204,8 +215,10 @@ export function initFeatureShell() {
     "flashcard-open": "flashcards",
     "quiz-open": "quiz",
     "cloud-open": "cloud",
+    "story-open": "story",
   })) {
     const button = document.getElementById(id);
+    if (!button) continue;
     button.disabled = false;
     button.addEventListener("click", () => navigate(feature));
   }

@@ -7,5 +7,11 @@
     "appId": "1:965807705053:web:422bb558c24e6cb92dc434",
     "storageBucket": "hsk-trainer-2fe1d.firebasestorage.app",
     "messagingSenderId": "965807705053"
+  },
+  "recaptchaEnterpriseSiteKey": "6LftcDMuAAAAAN94wgFGS7gdcEhYbLdvudj_3USN",
+  "aiConfig": {
+    "model": "gemini-2.0-flash",
+    "location": "us-central1",
+    "enforceAuth": true
   }
 }

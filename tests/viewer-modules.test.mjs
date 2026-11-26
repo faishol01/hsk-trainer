@@ -26,10 +26,11 @@ test('HTML loads external styles and scripts with relative paths for GitHub Page
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.doesNotMatch(html, /<style\b|\sstyle=|\sonclick=/i);
   const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
-  assert.equal(scripts.length, 1);
-  assert.match(scripts[0][1], /assets\/js\/bootstrap.js/);
+  const bootstrapScript = scripts.find(([, attrs]) => attrs.includes('assets/js/bootstrap.js'));
+  assert.ok(bootstrapScript, 'bootstrap.js must be present');
   assert.doesNotMatch(html, /src="[^"]*vis-network/);
   for (const [, attrs, contents] of scripts) {
+    if (attrs.includes('recaptcha')) continue;
     assert.match(attrs, /\bdefer\b/);
     assert.equal(contents.trim(), '');
   }

@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="./assets/css/features.css" />
     <link rel="stylesheet" href="./assets/css/grammar.css" />
     <link rel="stylesheet" href="./assets/css/pages.css" />
+    <link rel="stylesheet" href="./assets/css/story.css" />
+    <script src="https://www.google.com/recaptcha/enterprise.js?render=6LftcDMuAAAAAN94wgFGS7gdcEhYbLdvudj_3USN"></script>
   </head>
   <body data-feature="home">
     <header>
@@ -138,6 +140,15 @@
           </p>
           <span class="feature-action">Manage cloud sync &#8594;</span></a
         >
+        <a class="feature-card" href="#story" data-feature="story"
+          ><span class="feature-tag">AI PRACTICE</span
+          ><strong>AI Story generator</strong>
+          <p>
+            Generate level-locked Chinese stories with reading comprehension
+            questions powered by AI.
+          </p>
+          <span class="feature-action">Generate story &#8594;</span></a
+        >
       </nav>
     </main>
     <main id="grammar-view" class="grammar-view" hidden>
@@ -210,6 +221,238 @@
             <p id="grammar-speech" class="grammar-speech" role="status"></p>
           </div>
         </section>
+      </div>
+    </main>
+
+    <main id="story-view" class="story-view" hidden>
+      <div class="story-container">
+        <!-- Screen 1: Story Setup Page -->
+        <div id="story-setup-page" class="story-page-view">
+          <div class="story-heading">
+            <h2 id="story-title" tabindex="-1">AI Story generator</h2>
+            <p id="story-status" class="story-status" role="status">
+              Configure your level, length, and theme to generate a level-locked Chinese story with comprehension questions.
+            </p>
+          </div>
+
+          <div id="story-auth-banner" class="story-auth-banner" hidden>
+            <span class="auth-banner-icon">🔒</span>
+            <div class="auth-banner-text">
+              <strong id="story-auth-title">Authentication mode enabled</strong>
+              <p id="story-auth-desc">
+                Firebase AI enforces authenticated users. Sign in with Cloud sync to generate live AI stories.
+              </p>
+            </div>
+            <a id="story-auth-link" class="story-auth-btn" href="#cloud">Sign in</a>
+          </div>
+
+          <form id="story-form" class="story-form">
+            <!-- 1. HSK Level Checkboxes (Multi-select) -->
+            <fieldset class="story-fieldset">
+              <legend class="story-legend">Target HSK level (select one or more)</legend>
+              <div class="story-level-grid" role="group" aria-label="Target HSK levels">
+                <label class="story-level-chip">
+                  <input type="checkbox" name="story-level" value="HSK 1" checked />
+                  <span>HSK 1</span>
+                </label>
+                <label class="story-level-chip">
+                  <input type="checkbox" name="story-level" value="HSK 2" />
+                  <span>HSK 2</span>
+                </label>
+                <label class="story-level-chip">
+                  <input type="checkbox" name="story-level" value="HSK 3" />
+                  <span>HSK 3</span>
+                </label>
+                <label class="story-level-chip">
+                  <input type="checkbox" name="story-level" value="HSK 4" />
+                  <span>HSK 4</span>
+                </label>
+                <label class="story-level-chip">
+                  <input type="checkbox" name="story-level" value="HSK 5" />
+                  <span>HSK 5</span>
+                </label>
+                <label class="story-level-chip">
+                  <input type="checkbox" name="story-level" value="HSK 6" />
+                  <span>HSK 6</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <!-- 2. Target Length Number Field -->
+            <div class="story-field">
+              <label for="story-length">Target length (number of characters)</label>
+              <input
+                id="story-length"
+                type="number"
+                min="50"
+                max="1000"
+                step="50"
+                value="300"
+                required
+              />
+              <span class="story-field-help">Recommended: 150 (short), 300 (standard), or 500 (extended).</span>
+            </div>
+
+            <!-- 3. Story Theme Presets + Custom / Random -->
+            <fieldset class="story-fieldset">
+              <legend class="story-legend">Story theme</legend>
+              <div class="story-theme-presets" role="radiogroup" aria-label="Story theme presets">
+                <label class="story-theme-chip">
+                  <input type="radio" name="story-theme-preset" value="random" checked />
+                  <span>🎲 Random everyday theme</span>
+                </label>
+                <label class="story-theme-chip">
+                  <input type="radio" name="story-theme-preset" value="Cooking dumplings and Chinese food" />
+                  <span>🥟 Cooking dumplings</span>
+                </label>
+                <label class="story-theme-chip">
+                  <input type="radio" name="story-theme-preset" value="Weekend trip and train travel" />
+                  <span>🚆 Weekend train trip</span>
+                </label>
+                <label class="story-theme-chip">
+                  <input type="radio" name="story-theme-preset" value="Visiting a tea house or coffee shop" />
+                  <span>🍵 Tea house & coffee</span>
+                </label>
+                <label class="story-theme-chip">
+                  <input type="radio" name="story-theme-preset" value="Campus life and making new friends" />
+                  <span>🏫 Campus & new friends</span>
+                </label>
+                <label class="story-theme-chip">
+                  <input type="radio" name="story-theme-preset" value="Shopping for groceries at the supermarket" />
+                  <span>🛒 Supermarket shopping</span>
+                </label>
+                <label class="story-theme-chip">
+                  <input type="radio" name="story-theme-preset" value="custom" />
+                  <span>✏️ Write my own theme</span>
+                </label>
+              </div>
+
+              <div id="story-custom-theme-box" class="story-custom-theme-box" hidden>
+                <label for="story-custom-theme">Your custom theme</label>
+                <input
+                  id="story-custom-theme"
+                  type="text"
+                  placeholder="e.g. Looking for a lost cat in Beijing"
+                  autocomplete="off"
+                />
+              </div>
+            </fieldset>
+
+            <button id="story-generate-btn" class="story-primary-btn" type="submit">
+              Generate story
+            </button>
+          </form>
+        </div>
+
+        <!-- Screen 2: Generated Story Reader & Quiz Page -->
+        <div id="story-reader-page" class="story-page-view" hidden>
+          <div class="story-nav-bar">
+            <button id="story-back-to-setup" class="story-back-btn" type="button">
+              &#8592; Back to story setup
+            </button>
+            <button id="story-generate-another" class="story-secondary-btn" type="button">
+              + Configure another story
+            </button>
+          </div>
+
+          <div id="story-output" class="story-output-wrapper">
+            <!-- Main Story Panel with Integrated Sentence Breakdown -->
+            <section class="story-card" aria-labelledby="story-title-display">
+              <div class="story-card-header">
+                <div>
+                  <h3 id="story-title-display" class="story-main-title" lang="zh-Hans"></h3>
+                  <p id="story-subtitle-display" class="story-subtitle"></p>
+                </div>
+                <div class="story-toggles" aria-label="Story display controls">
+                  <button id="story-toggle-pinyin" class="story-toggle-btn" type="button" aria-pressed="false">
+                    Show Pinyin
+                  </button>
+                  <button id="story-toggle-english" class="story-toggle-btn" type="button" aria-pressed="false">
+                    Show Translation
+                  </button>
+                  <button id="story-toggle-viewmode" class="story-toggle-btn" type="button" aria-pressed="false">
+                    View Sentence Breakdown
+                  </button>
+                </div>
+              </div>
+
+              <!-- Continuous Paragraphs View (Default) -->
+              <div id="story-paragraphs" class="story-paragraphs-box"></div>
+
+              <!-- Paginated Sentence Breakdown View (Mobile-first, Left-Right pagination, Hidden by default) -->
+              <div id="story-sentences-pagination" class="story-sentences-pagination" hidden>
+                <div class="sentence-pagination-bar">
+                  <span id="sentence-page-counter" class="sentence-page-counter">Sentence 1 of 1</span>
+                  <div class="sentence-nav-arrows">
+                    <button id="sentence-prev-btn" class="sentence-nav-btn" type="button" aria-label="Previous sentence" disabled>
+                      &#8592; Prev
+                    </button>
+                    <button id="sentence-next-btn" class="sentence-nav-btn" type="button" aria-label="Next sentence">
+                      Next &#8594;
+                    </button>
+                  </div>
+                </div>
+
+                <div id="sentence-active-card" class="sentence-active-card" role="region" aria-live="polite">
+                  <p id="sentence-active-hanzi" class="story-sentence-hanzi" lang="zh-Hans"></p>
+                  <p id="sentence-active-pinyin" class="story-sentence-pinyin" lang="zh-Latn" hidden></p>
+                  <p id="sentence-active-english" class="story-sentence-english" hidden></p>
+                </div>
+              </div>
+            </section>
+
+            <!-- Reading Comprehension Quiz -->
+            <section class="story-card" aria-label="Reading comprehension quiz">
+              <div class="story-subheading">
+                <h3>Reading Comprehension Questions</h3>
+                <span id="story-quiz-score" class="story-quiz-score"></span>
+              </div>
+              <p class="story-status">Read each question in English and select the correct answer in Chinese:</p>
+              <div id="story-questions" class="story-questions-list"></div>
+            </section>
+
+            <!-- Featured Grammar Patterns -->
+            <section class="story-card" aria-label="Featured HSK grammar patterns">
+              <div class="story-subheading">
+                <h3>Featured HSK Grammar Patterns</h3>
+              </div>
+              <div class="table-responsive">
+                <table class="story-table">
+                  <thead>
+                    <tr>
+                      <th>Structure</th>
+                      <th>Level</th>
+                      <th>Example from Story</th>
+                      <th>Explanation</th>
+                    </tr>
+                  </thead>
+                  <tbody id="story-grammar-rows"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- Key Vocabulary -->
+            <section class="story-card" aria-label="Key vocabulary table">
+              <div class="story-subheading">
+                <h3>Key Vocabulary</h3>
+              </div>
+              <div class="table-responsive">
+                <table class="story-table">
+                  <thead>
+                    <tr>
+                      <th>Word</th>
+                      <th>Pinyin</th>
+                      <th>Part of Speech</th>
+                      <th>Meaning</th>
+                      <th>Level</th>
+                    </tr>
+                  </thead>
+                  <tbody id="story-vocab-rows"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
     </main>
 
