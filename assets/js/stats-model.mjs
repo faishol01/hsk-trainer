@@ -6,6 +6,8 @@ export const QUIZ_MODES = [
   ["character", "Translation to character"],
   ["pinyin", "Character to pinyin"],
   ["sentence", "Fill in the sentence"],
+  ["zh-any", "Chinese → any language"],
+  ["en-zh", "English → Chinese"],
 ];
 
 const count = (value) =>

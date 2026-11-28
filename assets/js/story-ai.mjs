@@ -142,7 +142,13 @@ export async function executeRecaptchaEnterprise(
 /**
  * Retrieves the current Firebase Auth ID token and App Check / reCAPTCHA Enterprise token if available
  */
-export async function getAuthToken({ auth, appCheck, appCheckApi, recaptchaSiteKey } = {}) {
+export async function getAuthToken({
+  auth,
+  appCheck,
+  appCheckApi,
+  recaptchaSiteKey,
+  action = "GENERATE_STORY",
+} = {}) {
   let idToken = null;
   let appCheckToken = null;
 
@@ -157,7 +163,7 @@ export async function getAuthToken({ auth, appCheck, appCheckApi, recaptchaSiteK
   // First try direct reCAPTCHA enterprise execution token if available
   if (recaptchaSiteKey) {
     try {
-      const enterpriseToken = await executeRecaptchaEnterprise(recaptchaSiteKey, "GENERATE_STORY");
+      const enterpriseToken = await executeRecaptchaEnterprise(recaptchaSiteKey, action);
       if (enterpriseToken) {
         appCheckToken = enterpriseToken;
       }
@@ -727,6 +733,86 @@ export async function generateStoryWithAI({
   }
 
   try {
+    const text = await requestAIText({
+      prompt,
+      config,
+      authToken,
+      appCheckToken,
+      fetcher,
+      importModule,
+      action: "GENERATE_STORY",
+    });
+    const parsed = extractJSONFromResponse(text);
+    return validateStoryOutput(parsed);
+  } catch (err) {
+    if (err?.code === "AUTH_REQUIRED") {
+      const fallback = generateCuratedStory({ level, theme });
+      fallback.aiNotice = {
+        isFallback: true,
+        isAuthRequired: true,
+        error:
+          "Authentication required: Firebase AI has authenticated-users mode enabled. Please sign in via Cloud sync to generate live AI stories.",
+      };
+      return fallback;
+    }
+    const errMsg = String(err?.message || err);
+    console.warn("AI generation encountered error, serving curated fallback:", err);
+    const fallback = generateCuratedStory({ level, theme });
+    const is401 = isUnauthorizedError(err);
+
+    fallback.aiNotice = {
+      isFallback: true,
+      isUnauthorized: is401,
+      error: is401
+        ? "AI service returned 401 Unauthorized (Firebase App Check token invalid or unverified for this domain). Displaying verified level-locked story with all sentences."
+        : `AI generation notice: ${errMsg}`,
+    };
+    return fallback;
+  }
+}
+
+/** Error raised by the shared AI request helper. `code` is AI_DISABLED, AUTH_REQUIRED or undefined. */
+export class AIServiceError extends Error {
+  constructor(message, code) {
+    super(message);
+    this.name = "AIServiceError";
+    this.code = code;
+  }
+}
+
+export function isUnauthorizedError(err) {
+  const msg = String(err?.message || err).toLowerCase();
+  return (
+    err?.status === 401 ||
+    msg.includes("401") ||
+    msg.includes("app check") ||
+    msg.includes("unauthenticated") ||
+    msg.includes("unauthorized")
+  );
+}
+
+/**
+ * Sends a prompt to Firebase AI Logic / Vertex AI (falling back to REST) and returns the raw
+ * response text. Shared by the story generator and the AI translation quiz.
+ * Throws AIServiceError with code "AI_DISABLED" or "AUTH_REQUIRED" for configuration issues.
+ */
+export async function requestAIText({
+  prompt,
+  config = null,
+  authToken = null,
+  appCheckToken = null,
+  fetcher = fetch,
+  importModule = (url) => import(url),
+  action = "GENERATE_STORY",
+} = {}) {
+  if (!config) {
+    config = await loadFirebaseConfig(fetcher);
+  }
+  if (!config?.enabled || !config?.firebaseConfig?.apiKey) {
+    throw new AIServiceError("AI service is not configured.", "AI_DISABLED");
+  }
+
+  {
     const { app, base, appCheck, appCheckApi, auth } = await initializeFirebaseServices({
       config,
       importModule,
@@ -740,20 +826,17 @@ export async function generateStoryWithAI({
       appCheck,
       appCheckApi,
       recaptchaSiteKey: siteKey,
+      action,
     });
     const effectiveAuthToken = authToken || tokens.idToken;
     const effectiveAppCheckToken = appCheckToken || tokens.appCheckToken;
 
     // Check if authenticated-users mode is enforced and user is unsigned
     if (!effectiveAuthToken && config.aiConfig?.enforceAuth) {
-      const fallback = generateCuratedStory({ level, theme });
-      fallback.aiNotice = {
-        isFallback: true,
-        isAuthRequired: true,
-        error:
-          "Authentication required: Firebase AI has authenticated-users mode enabled. Please sign in via Cloud sync to generate live AI stories.",
-      };
-      return fallback;
+      throw new AIServiceError(
+        "Authentication required: please sign in via Cloud sync to use AI features.",
+        "AUTH_REQUIRED",
+      );
     }
 
     const modelName = config.aiConfig?.model || "gemini-2.0-flash";
@@ -819,32 +902,21 @@ export async function generateStoryWithAI({
       if (restRes.ok) {
         const restJson = await restRes.json();
         text = restJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      } else if (typeof restRes.status === "number") {
+        const error = new Error(`AI service request failed (HTTP ${restRes.status})`);
+        error.status = restRes.status;
+        throw error;
       }
     }
 
     if (!text) {
       throw new Error("No response text from AI service");
     }
-
-    const parsed = extractJSONFromResponse(text);
-    return validateStoryOutput(parsed);
-  } catch (err) {
-    const errMsg = String(err?.message || err);
-    console.warn("AI generation encountered error, serving curated fallback:", err);
-    const fallback = generateCuratedStory({ level, theme });
-    const is401 =
-      errMsg.includes("401") ||
-      errMsg.toLowerCase().includes("app check") ||
-      errMsg.toLowerCase().includes("unauthenticated") ||
-      errMsg.toLowerCase().includes("unauthorized");
-
-    fallback.aiNotice = {
-      isFallback: true,
-      isUnauthorized: is401,
-      error: is401
-        ? "AI service returned 401 Unauthorized (Firebase App Check token invalid or unverified for this domain). Displaying verified level-locked story with all sentences."
-        : `AI generation notice: ${errMsg}`,
-    };
-    return fallback;
+    return text;
   }
+}
+
+/** Convenience wrapper: requests AI output and parses the JSON object it contains. */
+export async function requestAIJson(options) {
+  return extractJSONFromResponse(await requestAIText(options));
 }

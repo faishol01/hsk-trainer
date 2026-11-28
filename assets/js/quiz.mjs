@@ -342,6 +342,10 @@ export function initQuiz({
     quizTest = document.querySelector("#quiz-test"),
     quizDbNote = document.querySelector("#quiz-db-note"),
     quizWordProgress = document.querySelector("#quiz-word-progress");
+  const quizTranslate = document.querySelector("#quiz-translate"),
+    translateBody = document.querySelector("#translate-body"),
+    translateProgress = document.querySelector("#translate-progress"),
+    translateNotice = document.querySelector("#translate-notice");
   const progressStore = createWordProgressStore(window.indexedDB, cloudReady);
   const flashcardStore = createFlashcardStore(window.indexedDB, cloudReady);
   let quizCurrent = null,
@@ -443,6 +447,8 @@ export function initQuiz({
   function showQuizSetup() {
     quizSetup.hidden = false;
     quizTest.hidden = true;
+    if (quizTranslate) quizTranslate.hidden = true;
+    translateRun++; // cancel any pending AI translation request
     quizCurrent = null;
     quizLast = -1;
     quizCorrect = quizTotal = 0;
@@ -450,8 +456,364 @@ export function initQuiz({
     document.querySelector("#quiz-setup-error").textContent = "";
     updateModeSelection();
     updateLevelSelection();
+    updateQuizType();
     document.querySelector(".quiz-mode-option")?.focus();
   }
+
+  // ---------- AI translation sessions ----------
+  let translationModule = null,
+    translateSession = null,
+    translateAnswers = [],
+    translateTimes = [],
+    translateHintsUsed = [],
+    translateEnteredAt = 0,
+    translateIndex = 0,
+    translateRun = 0,
+    translateRetry = null,
+    lastTranslateSettings = null;
+
+  function flushTranslateTime() {
+    if (
+      translateSession &&
+      translateEnteredAt > 0 &&
+      translateTimes[translateIndex] != null
+    ) {
+      translateTimes[translateIndex] += Math.max(
+        0,
+        Date.now() - translateEnteredAt,
+      );
+    }
+    translateEnteredAt = 0;
+  }
+
+  function getQuizType() {
+    return document.querySelector('input[name="quiz-type"]:checked')?.value ===
+      "translate"
+      ? "translate"
+      : "choice";
+  }
+
+  function updateQuizType() {
+    const isTranslate = getQuizType() === "translate";
+    const choice = document.querySelector("#quiz-choice-settings");
+    const translate = document.querySelector("#quiz-translate-settings");
+    const sentenceRow = document.querySelector("#quiz-sentence-row");
+    if (choice) choice.hidden = isTranslate;
+    if (translate) translate.hidden = !isTranslate;
+    if (sentenceRow) sentenceRow.hidden = isTranslate;
+    const start = document.querySelector("#quiz-start");
+    if (start) start.textContent = isTranslate ? "Start AI session" : "Start quiz";
+    const err = document.querySelector("#quiz-setup-error");
+    if (err) err.textContent = "";
+  }
+
+  function setTranslateNotice(text) {
+    if (!translateNotice) return;
+    translateNotice.textContent = text || "";
+    translateNotice.hidden = !text;
+  }
+
+  function renderTranslateLoading(message) {
+    translateBody.innerHTML = `<div class="translate-loading"><div class="translate-spinner" aria-hidden="true"></div><p>${esc(message)}</p></div>`;
+  }
+
+  function renderTranslateError(message, retry, { canGoBack = false } = {}) {
+    translateRetry = retry;
+    translateBody.innerHTML = `<div class="translate-error"><p class="quiz-feedback">${esc(message)}</p><div class="translate-nav">${canGoBack ? `<button type="button" data-translate="back">← Back to answers</button>` : ""}<button type="button" class="translate-primary" data-translate="retry">Try again</button></div></div>`;
+  }
+
+  function readTranslateSettings() {
+    const wordLevels = [...document.querySelectorAll(".quiz-level:checked")].map(
+      (el) => el.value,
+    );
+    const grammarLevels = [
+      ...document.querySelectorAll(".translate-grammar-level:checked"),
+    ].map((el) => el.value);
+    const direction =
+      document.querySelector('input[name="translate-direction"]:checked')?.value ===
+      "en-zh"
+        ? "en-zh"
+        : "zh-any";
+    const count =
+      parseInt(document.querySelector("#translate-count")?.value, 10) || 5;
+    return { direction, wordLevels, grammarLevels, count };
+  }
+
+  function startTranslationSession() {
+    const err = document.querySelector("#quiz-setup-error");
+    const settings = readTranslateSettings();
+    if (!settings.grammarLevels.length) {
+      err.textContent = "Choose at least one grammar level to begin.";
+      return;
+    }
+    if (!settings.wordLevels.length) {
+      err.textContent = "Choose at least one word level to begin.";
+      return;
+    }
+    err.textContent = "";
+    lastTranslateSettings = settings;
+    runTranslationSession(settings);
+  }
+
+  async function runTranslationSession(settings) {
+    const run = ++translateRun;
+    quizSetup.hidden = true;
+    quizTest.hidden = true;
+    quizTranslate.hidden = false;
+    setTranslateNotice("");
+    translateSession = null;
+    translateProgress.textContent =
+      settings.direction === "en-zh" ? "English → Chinese" : "Chinese → any language";
+    renderTranslateLoading(`Generating ${settings.count} sentences with AI…`);
+    try {
+      translationModule ||= await import("./translation-quiz.mjs");
+      const session = await translationModule.generateTranslationSession({
+        ...settings,
+        words: data,
+      });
+      if (run !== translateRun) return;
+      translateSession = session;
+      translateAnswers = session.items.map(() => "");
+      translateTimes = session.items.map(() => 0);
+      translateHintsUsed = session.items.map(() => false);
+      translateEnteredAt = 0;
+      translateIndex = 0;
+      setTranslateNotice(session.notice);
+      renderTranslateQuestion();
+    } catch (e) {
+      if (run !== translateRun) return;
+      renderTranslateError(String(e?.message || e), () =>
+        runTranslationSession(settings),
+      );
+    }
+  }
+
+  function renderTranslateQuestion() {
+    const session = translateSession,
+      item = session.items[translateIndex],
+      total = session.items.length,
+      isZh = session.direction === "zh-any",
+      last = translateIndex === total - 1,
+      blanks = translateAnswers.filter((a) => !a.trim()).length;
+    const g = item.grammar;
+    translateProgress.textContent = `${isZh ? "Chinese → any language" : "English → Chinese"} · Question ${translateIndex + 1} of ${total}`;
+    const words = item.words
+      .map(
+        (w) =>
+          `<span class="translate-word"><span lang="zh-Hans">${esc(w[0])}</span> ${esc(w[1])} · ${esc(w[3])}</span>`,
+      )
+      .join("");
+    const dots = session.items
+      .map(
+        (_, i) =>
+          `<button type="button" class="translate-dot${i === translateIndex ? " current" : ""}${translateAnswers[i].trim() ? " answered" : ""}" data-translate-go="${i}" aria-label="Question ${i + 1}${translateAnswers[i].trim() ? ", answered" : ""}">${i + 1}</button>`,
+      )
+      .join("");
+    translateBody.innerHTML = `
+      <p class="quiz-prompt-label">${esc(isZh ? "Translate this sentence into any language you know" : "Translate this sentence into Chinese (Hanzi)")}</p>
+      <div class="quiz-prompt translate-prompt" lang="${isZh ? "zh-Hans" : "en"}">${esc(isZh ? item.hanzi : item.english)}</div>
+      <div class="quiz-hints">
+        ${isZh && item.pinyin ? `<button type="button" data-translate-hint="pinyin">Show pinyin</button>` : ""}
+        <button type="button" data-translate-hint="grammar">Show grammar</button>
+        ${!isZh ? `<button type="button" data-translate-hint="words">Show suggested words</button>` : ""}
+      </div>
+      ${isZh && item.pinyin ? `<p id="translate-hint-pinyin" class="quiz-meta" hidden>${esc(item.pinyin)}</p>` : ""}
+      <p id="translate-hint-grammar" class="quiz-meta" hidden><span lang="zh-Hans">${esc(g.structure)}</span>${g.meaning ? ` — ${esc(g.meaning)}` : ""} (HSK ${esc(g.level)})</p>
+      ${!isZh ? `<p id="translate-hint-words" class="translate-words" hidden>${words}</p>` : ""}
+      <label class="translate-answer-label" for="translate-answer">Your translation</label>
+      <textarea id="translate-answer" class="translate-answer" rows="3" ${isZh ? "" : 'lang="zh-Hans"'} placeholder="${isZh ? "Type your translation in any language…" : "用中文写…"}">${esc(translateAnswers[translateIndex])}</textarea>
+      <div class="translate-dots" role="navigation" aria-label="Questions">${dots}</div>
+      <div class="translate-nav">
+        <button type="button" data-translate="prev" ${translateIndex === 0 ? "disabled" : ""}>← Previous</button>
+        ${last ? "" : `<button type="button" data-translate="next">Next →</button>`}
+        <button type="button" class="${last ? "translate-primary" : "translate-secondary"}" data-translate="check">Check answers${blanks ? ` (${blanks} blank)` : ""}</button>
+      </div>
+      <p class="quiz-meta">Answers are marked together by AI when you finish. Ctrl+Enter goes to the next question.</p>`;
+    translateEnteredAt = Date.now();
+    translateBody.querySelector("#translate-answer")?.focus();
+  }
+
+  function goToTranslateQuestion(index) {
+    if (!translateSession) return;
+    flushTranslateTime();
+    translateIndex = Math.max(0, Math.min(translateSession.items.length - 1, index));
+    renderTranslateQuestion();
+  }
+
+  async function checkTranslationAnswers() {
+    if (!translateSession) return;
+    flushTranslateTime();
+    const run = ++translateRun;
+    renderTranslateLoading("Checking your answers with AI…");
+    try {
+      const graded = await translationModule.gradeTranslationSession({
+        session: translateSession,
+        answers: translateAnswers,
+      });
+      if (run !== translateRun) return;
+      const session = translateSession;
+      const updates = translationModule.buildSessionProgressUpdates({
+        session,
+        answers: translateAnswers,
+        results: graded.results,
+        words: data,
+        timesSeconds: translateTimes.map((ms) => ms / 1000),
+        hintsUsed: translateHintsUsed,
+      });
+      renderTranslateResults(graded, updates);
+      if (!session.progressRecorded) {
+        session.progressRecorded = true;
+        translationModule
+          .recordSessionProgress({
+            updates,
+            progressStore,
+            flashcardStore,
+          })
+          .then(({ byQuestion, totalWords }) => {
+            if (translateSession === session) {
+              const statusEl = translateBody.querySelector(
+                "#translate-progress-status",
+              );
+              if (statusEl) {
+                statusEl.textContent = totalWords
+                  ? `Word progress saved for ${totalWords} ${totalWords === 1 ? "word" : "words"}.`
+                  : "No matching HSK vocabulary words to record for this session.";
+              }
+              byQuestion.forEach((saved, i) => {
+                if (!saved.length) return;
+                const el = translateBody.querySelector(
+                  `[data-translate-word-progress="${i}"]`,
+                );
+                if (el) {
+                  const qScore = saved[0].qScore;
+                  el.innerHTML = `<strong>Word progress (q=${esc(qScore)}/5):</strong> ${saved
+                    .map(
+                      ({ quiz }) =>
+                        `<span lang="zh-Hans">${esc(quiz.word)}</span> (${quiz.correct}✓ ${quiz.incorrect}✗)`,
+                    )
+                    .join(" · ")}`;
+                }
+              });
+            }
+            quizDbNote.textContent =
+              "Progress is saved on this device. Check Cloud sync for upload status.";
+          })
+          .catch(() => {
+            if (translateSession === session) {
+              const statusEl = translateBody.querySelector(
+                "#translate-progress-status",
+              );
+              if (statusEl) {
+                statusEl.textContent =
+                  "Could not save word progress for this session.";
+              }
+            }
+            quizDbNote.textContent =
+              "Progress could not be saved in this browser.";
+          });
+      }
+    } catch (e) {
+      if (run !== translateRun) return;
+      renderTranslateError(translationModule.describeAIError(e), checkTranslationAnswers, {
+        canGoBack: true,
+      });
+    }
+  }
+
+  function renderTranslateResults({ results, summary }, updates = []) {
+    const session = translateSession,
+      isZh = session.direction === "zh-any";
+    translateProgress.textContent = "Session complete";
+    const verdictLabel = { correct: "Correct", partial: "Partly correct", incorrect: "Incorrect", ungraded: "Not marked" };
+    const cards = session.items
+      .map((item, i) => {
+        const r = results[i],
+          answer = translateAnswers[i].trim(),
+          g = item.grammar,
+          u = updates[i];
+        const reference = isZh
+          ? `${item.pinyin ? `<span lang="zh-Latn">${esc(item.pinyin)}</span> · ` : ""}${esc(item.english)}`
+          : `<span lang="zh-Hans">${esc(item.hanzi)}</span>${item.pinyin ? ` · <span lang="zh-Latn">${esc(item.pinyin)}</span>` : ""}`;
+        const wordLine = u?.entries?.length
+          ? `<p class="quiz-meta" data-translate-word-progress="${i}"><strong>Word progress (q=${esc(u.scored.qScore)}/5):</strong> ${u.entries.map((e) => `<span lang="zh-Hans">${esc(e[0])}</span>`).join(" · ")}</p>`
+          : "";
+        return `<article class="translate-result verdict-${esc(r.verdict)}">
+          <header><span class="translate-result-num">${i + 1}.</span><span class="translate-result-badge">${r.score ?? "–"}/100 · ${esc(verdictLabel[r.verdict] || r.verdict)}</span></header>
+          <p class="translate-result-source" lang="${isZh ? "zh-Hans" : "en"}">${esc(isZh ? item.hanzi : item.english)}</p>
+          <p><strong>Your answer:</strong> ${answer ? `<span ${isZh ? "" : 'lang="zh-Hans"'}>${esc(answer)}</span>` : "<em>(blank)</em>"}${r.detectedLanguage && isZh ? ` <span class="quiz-meta">(${esc(r.detectedLanguage)})</span>` : ""}</p>
+          ${r.feedback ? `<p class="translate-result-feedback">${esc(r.feedback)}</p>` : ""}
+          ${r.correction ? `<p><strong>${r.verdict === "correct" ? "Also good" : "Suggested"}:</strong> <span ${isZh ? "" : 'lang="zh-Hans"'}>${esc(r.correction)}</span>${r.correctionPinyin ? ` <span class="quiz-meta" lang="zh-Latn">${esc(r.correctionPinyin)}</span>` : ""}</p>` : ""}
+          <p class="quiz-meta"><strong>Reference:</strong> ${reference}</p>
+          <p class="quiz-meta"><strong>Grammar:</strong> <span lang="zh-Hans">${esc(g.structure)}</span>${g.meaning ? ` — ${esc(g.meaning)}` : ""} (HSK ${esc(g.level)})${item.grammarNote ? `. ${esc(item.grammarNote)}` : ""}</p>
+          ${wordLine}
+        </article>`;
+      })
+      .join("");
+    const avg = summary.average === null ? "–" : summary.average;
+    translateBody.innerHTML = `
+      <div class="translate-summary">
+        <div class="translate-summary-score">${avg}<span>/100</span></div>
+        <p>${summary.correct} of ${summary.count} correct${summary.graded < summary.count ? ` · ${summary.count - summary.graded} not marked` : ""}</p>
+        <p id="translate-progress-status" class="quiz-meta" role="status">Saving word progress…</p>
+      </div>
+      <div class="translate-results">${cards}</div>
+      <div class="translate-nav">
+        <button type="button" data-translate="settings">Change settings</button>
+        <button type="button" class="translate-primary" data-translate="again">New session</button>
+      </div>`;
+    translateBody.querySelector("[data-translate='again']")?.focus();
+  }
+
+  translateBody?.addEventListener("input", (e) => {
+    if (e.target?.id === "translate-answer" && translateSession) {
+      translateAnswers[translateIndex] = e.target.value;
+      const answered = !!e.target.value.trim();
+      translateBody
+        .querySelector(`[data-translate-go="${translateIndex}"]`)
+        ?.classList.toggle("answered", answered);
+      const check = translateBody.querySelector("[data-translate='check']");
+      const blanks = translateAnswers.filter((a) => !a.trim()).length;
+      if (check) check.textContent = `Check answers${blanks ? ` (${blanks} blank)` : ""}`;
+    }
+  });
+  translateBody?.addEventListener("keydown", (e) => {
+    if (e.target?.id === "translate-answer" && e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (translateIndex < translateSession.items.length - 1)
+        goToTranslateQuestion(translateIndex + 1);
+      else checkTranslationAnswers();
+    }
+  });
+  translateBody?.addEventListener("click", (e) => {
+    const hint = e.target.closest?.("[data-translate-hint]");
+    if (hint) {
+      const el = translateBody.querySelector("#translate-hint-" + hint.dataset.translateHint);
+      if (el) {
+        el.hidden = !el.hidden;
+        if (!el.hidden && translateHintsUsed[translateIndex] != null) {
+          translateHintsUsed[translateIndex] = true;
+        }
+        hint.textContent = hint.textContent.replace(/^(Show|Hide)/, el.hidden ? "Show" : "Hide");
+      }
+      return;
+    }
+    const go = e.target.closest?.("[data-translate-go]");
+    if (go) return goToTranslateQuestion(+go.dataset.translateGo);
+    const action = e.target.closest?.("[data-translate]")?.dataset.translate;
+    if (action === "prev") goToTranslateQuestion(translateIndex - 1);
+    else if (action === "next") goToTranslateQuestion(translateIndex + 1);
+    else if (action === "check") checkTranslationAnswers();
+    else if (action === "back") renderTranslateQuestion();
+    else if (action === "retry") translateRetry?.();
+    else if (action === "again" && lastTranslateSettings) runTranslationSession(lastTranslateSettings);
+    else if (action === "settings") showQuizSetup();
+  });
+  document
+    .querySelector("#translate-settings")
+    ?.addEventListener("click", showQuizSetup);
+  document.querySelectorAll('input[name="quiz-type"]').forEach((input) => {
+    input.addEventListener("change", updateQuizType);
+  });
   function openQuiz() {
     quizOverlay.hidden = false;
     document.querySelector("#quiz-open").setAttribute("aria-expanded", "true");
@@ -509,6 +871,10 @@ export function initQuiz({
   });
   document.querySelector("#quiz-start").addEventListener("click", async () => {
     let startButton = document.querySelector("#quiz-start");
+    if (getQuizType() === "translate") {
+      startTranslationSession();
+      return;
+    }
     const modes = getSelectedModes();
     if (!modes.length) {
       document.querySelector("#quiz-setup-error").textContent =

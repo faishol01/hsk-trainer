@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="./assets/css/grammar.css" />
     <link rel="stylesheet" href="./assets/css/pages.css" />
     <link rel="stylesheet" href="./assets/css/story.css" />
+    <link rel="stylesheet" href="./assets/css/translation-quiz.css" />
     <script src="https://www.google.com/recaptcha/enterprise.js?render=6LftcDMuAAAAAN94wgFGS7gdcEhYbLdvudj_3USN"></script>
   </head>
   <body data-feature="home">
@@ -666,6 +667,17 @@
           <button id="quiz-close" type="button">← Back to home</button>
         </div>
         <div id="quiz-setup">
+          <div class="quiz-type-toggle" role="radiogroup" aria-label="Quiz type">
+            <label class="quiz-type-option">
+              <input type="radio" name="quiz-type" value="choice" checked />
+              <span>Multiple choice</span>
+            </label>
+            <label class="quiz-type-option">
+              <input type="radio" name="quiz-type" value="translate" />
+              <span>✨ AI translation</span>
+            </label>
+          </div>
+          <div id="quiz-choice-settings">
           <fieldset class="quiz-modes">
             <div class="quiz-section-header">
               <legend>Quiz modes</legend>
@@ -748,6 +760,52 @@
             <option value="sentence">Fill in the sentence</option>
             <option value="mix">Mix all modes</option>
           </select>
+          </div>
+          <div id="quiz-translate-settings" class="quiz-translate-settings" hidden>
+            <fieldset class="quiz-modes">
+              <legend>Translation mode</legend>
+              <div class="quiz-modes-grid">
+                <label class="quiz-mode-card">
+                  <input type="radio" name="translate-direction" value="zh-any" checked />
+                  <span class="quiz-mode-badge" aria-hidden="true">汉 → ANY</span>
+                  <span class="quiz-mode-info">
+                    <span class="quiz-mode-title">Chinese → any language</span>
+                    <span class="quiz-mode-desc">Read a Chinese sentence, translate it into any language</span>
+                  </span>
+                </label>
+                <label class="quiz-mode-card">
+                  <input type="radio" name="translate-direction" value="en-zh" />
+                  <span class="quiz-mode-badge" aria-hidden="true">EN → 汉</span>
+                  <span class="quiz-mode-info">
+                    <span class="quiz-mode-title">English → Chinese</span>
+                    <span class="quiz-mode-desc">Read an English sentence, write it in Chinese</span>
+                  </span>
+                </label>
+              </div>
+            </fieldset>
+            <fieldset class="quiz-levels quiz-grammar-levels">
+              <legend>Grammar levels</legend>
+              <label><input type="checkbox" class="translate-grammar-level" value="1" checked /> HSK 1</label>
+              <label><input type="checkbox" class="translate-grammar-level" value="2" /> HSK 2</label>
+              <label><input type="checkbox" class="translate-grammar-level" value="3" /> HSK 3</label>
+              <label><input type="checkbox" class="translate-grammar-level" value="4" /> HSK 4</label>
+              <label><input type="checkbox" class="translate-grammar-level" value="5" /> HSK 5</label>
+              <label><input type="checkbox" class="translate-grammar-level" value="6" /> HSK 6</label>
+            </fieldset>
+            <label class="quiz-translate-count">
+              Questions per session
+              <select id="translate-count">
+                <option value="3">3</option>
+                <option value="5" selected>5</option>
+                <option value="8">8</option>
+                <option value="10">10</option>
+              </select>
+            </label>
+            <p class="quiz-meta">
+              A random grammar point is picked for every question. AI writes all sentences in one
+              request and marks all your answers together when you finish the session.
+            </p>
+          </div>
           <fieldset class="quiz-levels">
             <legend>Word levels</legend>
             <label
@@ -785,7 +843,7 @@
             >
           </fieldset>
           <p class="quiz-meta">Choose one or more levels to practice.</p>
-          <div class="sentence-file-row">
+          <div id="quiz-sentence-row" class="sentence-file-row">
             <button id="choose-sentence-file" type="button" hidden>
               Upload sentence TSV
             </button>
@@ -811,6 +869,14 @@
               Next question →
             </button>
           </div>
+        </div>
+        <div id="quiz-translate" class="quiz-translate" hidden>
+          <div class="quiz-test-bar">
+            <span id="translate-progress" aria-live="polite"></span>
+            <button id="translate-settings" type="button">Change quiz settings</button>
+          </div>
+          <p id="translate-notice" class="quiz-translate-notice" role="status" hidden></p>
+          <div id="translate-body" aria-live="polite"></div>
         </div>
         <p id="quiz-db-note" class="quiz-meta" role="status"></p>
       </div>

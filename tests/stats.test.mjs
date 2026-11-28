@@ -74,7 +74,7 @@ test("summary uses total answers for accuracy instead of averaging percentages",
 
 test("quiz modes report their own counts without leaking totals between modes", () => {
   const row = buildWordStats(entries, snapshot, 2000)[1];
-  assert.equal(row.quiz.modes.length, 4);
+  assert.equal(row.quiz.modes.length, 6);
   assert.equal(row.quiz.modes.find((mode) => mode.mode === "pinyin").total, 9);
   assert.equal(
     row.quiz.modes.find((mode) => mode.mode === "translation").total,
@@ -82,6 +82,14 @@ test("quiz modes report their own counts without leaking totals between modes", 
   );
   assert.equal(
     row.quiz.modes.find((mode) => mode.mode === "sentence").accuracy,
+    null,
+  );
+  assert.equal(
+    row.quiz.modes.find((mode) => mode.mode === "zh-any").accuracy,
+    null,
+  );
+  assert.equal(
+    row.quiz.modes.find((mode) => mode.mode === "en-zh").accuracy,
     null,
   );
 });

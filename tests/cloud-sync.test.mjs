@@ -108,3 +108,18 @@ test('security and index configuration only expose owner-scoped progress', () =>
   const config = JSON.parse(readFileSync(new URL('../data/firebase-config.json', import.meta.url)));
   assert.equal(typeof config.enabled, 'boolean');
 });
+
+test('legacy 12-element cloud quiz rows merge cleanly with 16-element AI translation modes', () => {
+  const legacy = [3, 1, 1000, 1, 2, 0, 1, 1, 0, 0, 0, 0];
+  assert.ok(validPacked('q', legacy));
+  const updated = nextPacked('q', legacy, null, true, 'zh-any', 2000);
+  assert.ok(validPacked('q', updated));
+  assert.equal(updated.length, 16);
+  const merged = mergePacked('q', legacy, updated);
+  const record = aggregate('q', [document('A', 'q', merged)], vocabulary).get(key);
+  assert.equal(record.correct, 4);
+  assert.equal(record.incorrect, 1);
+  assert.deepEqual(record.byMode.translation, { correct: 2, incorrect: 0 });
+  assert.deepEqual(record.byMode['zh-any'], { correct: 1, incorrect: 0 });
+  assert.deepEqual(record.byMode['en-zh'], { correct: 0, incorrect: 0 });
+});

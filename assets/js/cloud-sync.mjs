@@ -2,7 +2,25 @@ import { publishCloudStatus } from "./cloud-status.mjs";
 
 // Compact, account-scoped progress. Vocabulary and sentences never enter Firestore.
 export const SDK_VERSION = "13.2.0";
-export const MODES = ["translation", "character", "pinyin", "sentence"];
+export const MODES = [
+  "translation",
+  "character",
+  "pinyin",
+  "sentence",
+  "zh-any",
+  "en-zh",
+];
+const LEGACY_QUIZ_LEN = 12;
+const QUIZ_PACKED_LEN = 4 + MODES.length * 2;
+const QUIZ_COUNTERS = [
+  0,
+  1,
+  ...Array.from({ length: MODES.length * 2 }, (_, i) => 4 + i),
+];
+const padQuizRow = (row) =>
+  row.length < QUIZ_PACKED_LEN
+    ? [...row, ...Array(QUIZ_PACKED_LEN - row.length).fill(0)]
+    : row.slice();
 export const BUCKETS = 4;
 export const keyFor = (entry) =>
   JSON.stringify([entry[0], entry[1].trim().normalize("NFC").toLowerCase()]);
@@ -17,7 +35,9 @@ const count = (value) =>
 export function validPacked(kind, row) {
   return (
     Array.isArray(row) &&
-    row.length === (kind === "q" ? 12 : 7) &&
+    (kind === "q"
+      ? row.length === LEGACY_QUIZ_LEN || row.length === QUIZ_PACKED_LEN
+      : row.length === 7) &&
     row.every((value) => Number.isSafeInteger(value) && value >= 0) &&
     (kind === "q" ? row[3] <= 1 : row[6] <= 1)
   );
@@ -47,19 +67,25 @@ export function packFlashcard(record) {
 }
 // Within one device: monotone counters make retries and duplicate snapshots idempotent.
 export function mergePacked(kind, left, right) {
-  if (!validPacked(kind, left)) return right.slice();
-  if (!validPacked(kind, right)) return left.slice();
+  if (!validPacked(kind, left))
+    return kind === "q" && validPacked(kind, right)
+      ? padQuizRow(right)
+      : right.slice();
+  if (!validPacked(kind, right))
+    return kind === "q" ? padQuizRow(left) : left.slice();
+  const l = kind === "q" ? padQuizRow(left) : left;
+  const r = kind === "q" ? padQuizRow(right) : right;
   const latest =
-    left[2] === right[2]
-      ? JSON.stringify(left) > JSON.stringify(right)
-        ? left
-        : right
-      : left[2] > right[2]
-        ? left
-        : right;
+    l[2] === r[2]
+      ? JSON.stringify(l) > JSON.stringify(r)
+        ? l
+        : r
+      : l[2] > r[2]
+        ? l
+        : r;
   const result = latest.slice();
-  const counters = kind === "q" ? [0, 1, 4, 5, 6, 7, 8, 9, 10, 11] : [0, 1];
-  for (const i of counters) result[i] = Math.max(left[i], right[i]);
+  const counters = kind === "q" ? QUIZ_COUNTERS : [0, 1];
+  for (const i of counters) result[i] = Math.max(l[i], r[i]);
   return result;
 }
 export function mergeDocument(local, incoming) {
@@ -98,8 +124,8 @@ export function aggregate(kind, documents, vocabulary) {
             correct: 0,
             incorrect: 0,
           });
-          modeCounts.correct += row[4 + index * 2];
-          modeCounts.incorrect += row[5 + index * 2];
+          modeCounts.correct += row[4 + index * 2] || 0;
+          modeCounts.incorrect += row[5 + index * 2] || 0;
         });
       } else {
         record.remembered += row[0];
@@ -139,7 +165,9 @@ export function nextPacked(
   now = Date.now(),
 ) {
   if (kind === "q") {
-    const row = validPacked(kind, own) ? own.slice() : Array(12).fill(0);
+    const row = validPacked(kind, own)
+      ? padQuizRow(own)
+      : Array(QUIZ_PACKED_LEN).fill(0);
     const index = MODES.indexOf(mode);
     if (index < 0) throw new Error("Unsupported quiz mode");
     row[correct ? 0 : 1]++;
@@ -361,10 +389,10 @@ export class ProgressCache {
         };
         const old = local.c[record.key];
         if (old) {
-          const combined = mergePacked(kind, old, packed);
-          const counters =
-            kind === "q" ? [0, 1, 4, 5, 6, 7, 8, 9, 10, 11] : [0, 1];
-          for (const i of counters) combined[i] = old[i] + packed[i];
+          const prev = kind === "q" ? padQuizRow(old) : old;
+          const combined = mergePacked(kind, prev, packed);
+          const counters = kind === "q" ? QUIZ_COUNTERS : [0, 1];
+          for (const i of counters) combined[i] = prev[i] + packed[i];
           local.c[record.key] = combined;
         } else local.c[record.key] = packed;
         const dirty = (await requestValue(pending.get(key))) || {
